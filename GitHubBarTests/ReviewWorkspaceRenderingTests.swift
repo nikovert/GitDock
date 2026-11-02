@@ -7,6 +7,7 @@ import GitHubBarCore
 @MainActor
 final class ReviewWorkspaceRenderingTests: XCTestCase {
     func testManagementAndReviewRenderInBothAppearancesAndMinimumWidth() async throws {
+        _ = NSApplication.shared
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("workspace-render-\(UUID())")
         let suite = "workspace-render-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -50,6 +51,7 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
             ("review-large", 1800.0, .review, .changes, .darkAqua),
             ("threads-light", 1380.0, .review, .threads, .aqua),
             ("threads-dark", 1380.0, .review, .threads, .darkAqua),
+            ("threads-partial-minimum", 900.0, .review, .threads, .aqua),
             ("manage-minimum", 900.0, .manage, .overview, .aqua),
         ] {
             let host = NSHostingView(rootView: ReviewWorkspaceView(workspace: workspace, appModel: app, review: model, layout: WorkspaceLayout(defaults: defaults)).defaultAppStorage(defaults))
@@ -66,7 +68,11 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
                 $0.comments = [WorkspaceInlineDraft(path: "src/controllers/controller.py", line: 12, side: "RIGHT", body: "Could we include NaN in the fallback test too?", agentName: "Codex", reviewRunID: UUID(), createdAt: .now)]
                 $0.generalComments = [WorkspaceGeneralDraft(body: "Add an integration test that restores valid input after the fallback.", agentName: "Codex", reviewRunID: UUID(), createdAt: .now)]
                 $0.lastAgentReview = WorkspaceAgentReviewReceipt(id: UUID(), provider: "Codex", completedAt: .now,
-                    summary: "Two actionable findings are saved as drafts for your review.", findingCount: 2, contextIncomplete: false)
+                    summary: "Two actionable findings are saved as drafts for your review.", findingCount: 2,
+                    contextIncomplete: name == "threads-partial-minimum",
+                    coverage: ReviewCoverage(reviewedPaths: name == "threads-partial-minimum" ? ["src/controllers/controller.py"] : ["src/controllers/controller.py", "tests/test_controller.py"],
+                        unreviewed: name == "threads-partial-minimum" ? [ReviewUnreviewedFile(path: "tests/test_controller.py", reason: "The provider stopped before inspecting this file.")] : [],
+                        testsRun: [], limitations: []), changedFileCount: 2, mergeBaseSHA: "base")
                 $0.messages = [WorkspaceChatMessage(role: "assistant", text: "The fallback preserves the last valid output. Check **missing inputs** and test recovery.\n```python\nassert update(None) == previous_output\n```")]
             }
             model.splitDiff = name == "review-dark"

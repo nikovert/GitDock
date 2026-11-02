@@ -1,4 +1,5 @@
 import Foundation
+import GitHubBarCore
 import Observation
 
 struct ReviewIdentity: Codable, Equatable, Hashable {
@@ -46,6 +47,16 @@ struct WorkspaceAgentReviewReceipt: Codable, Equatable {
     let summary: String
     let findingCount: Int
     let contextIncomplete: Bool
+    var coverage: ReviewCoverage? = nil
+    var changedFileCount: Int? = nil
+    var mergeBaseSHA: String? = nil
+    var sourceNotices: [String]? = nil
+
+    var coverageLabel: String {
+        guard let coverage, let total = changedFileCount else { return "Excerpt review · full-file coverage unavailable" }
+        let prefix = contextIncomplete ? "Partial review" : "Worktree review"
+        return "\(prefix) · \(coverage.reviewedPaths.count)/\(total) files reported reviewed"
+    }
 }
 
 struct WorkspaceChatMessage: Codable, Equatable, Identifiable {

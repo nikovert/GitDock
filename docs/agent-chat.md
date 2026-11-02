@@ -102,8 +102,9 @@ The UI must resolve them against its selected snapshot before navigating.
 
 The optional request field `"task": "review"` asks for an advisory review of the
 supplied changes. Omitting `task` (or setting it to `null`) retains ordinary chat.
-The bundled adapter uses the same read-only or tool-disabled provider flags for
-both tasks. A review never applies fixes or posts comments.
+This legacy excerpt-review protocol remains supported by the bundled adapter.
+The app's **Agent review** action now uses `worktree_review` below. A review never
+applies fixes or posts comments.
 
 Review responses retain `prURL`, `headSHA`, `answer`, and `citations` and must add
 a `findings` array:
@@ -125,7 +126,8 @@ Each finding has a nonblank `body`; `path`, `line`, and `side` are optional and
 remain absent when not supplied. An explicit `"findings": []` means the review
 completed without actionable findings. Missing or malformed findings, prose, and
 legacy chat-only responses are review failures, never an empty-review success.
-Custom adapters must implement this extension to support Agent review. Existing
+Custom adapters can implement this legacy extension for external callers. The
+app's worktree-review action supports bundled Codex and Claude only. Existing
 chat-only custom adapters continue to support chat.
 
 Responses allow at most 100 findings, 16 KiB of UTF-8 body text per finding and
@@ -141,6 +143,48 @@ Agent findings remain editable local drafts until the user explicitly publishes
 an individual comment or all drafts. A failed or cancelled review preserves
 existing drafts.
 
+### Complete worktree reviews
+
+`"task": "worktree_review"` adds a required `repository` object with absolute
+`worktreePath`, `contextDirectory`, and `manifestPath`, plus pinned `headSHA`,
+`baseSHA`, and `mergeBaseSHA`. All three revisions are full Git object IDs. The
+adapter working directory must be the prepared worktree. Ordinary requests and
+responses remain compatible when these optional fields are absent.
+
+The native manager creates a fresh detached worktree at the captured PR head and
+builds an authoritative manifest for `merge-base…head`. Its private context directory
+contains `manifest.json`, complete per-file patches, base-file contents for old-side
+inspection, and `discussion.json` with description, published discussion, local drafts,
+and source notices. Renames include `previousPath`; deleted, binary, and symlink
+entries remain in the inventory. The adapter verifies the manifest inventory against
+local Git metadata before launching the provider. Git replacements and grafts are
+disabled; checkout filters, hooks, and fsmonitor are neutralized during preparation.
+
+Provider output must include `findings` and:
+
+```json
+"coverage": {
+  "reviewedPaths": ["Sources/Batch.swift"],
+  "unreviewed": [{"path": "asset.bin", "reason": "Binary content cannot be inspected as code."}],
+  "testsRun": [],
+  "limitations": []
+}
+```
+
+Unknown, duplicate, or overlapping paths and nonempty `testsRun` reject the response.
+Missing manifest paths become explicitly unreviewed. Coverage is agent-reported,
+not an independent trace proving every line was read. The review is inspection-only:
+the prompt prohibits executing repository code/tests, dependency installs, edits,
+commits, and publishing. Codex runs read-only with JSON events and a structured schema;
+Claude receives only Read/Grep/Glob tools and the private context directory. Neither
+provider receives GitHub credentials through the request. Existing CLI sign-in is used.
+
+The app verifies the tree is unchanged and rechecks the PR head/base before importing
+results. Clean owned worktrees are removed after completion/failure/cancellation;
+dirty or replaced worktrees are retained with a visible warning. Existing drafts
+are preserved on any failure. There is no excerpt fallback. Native preparation and
+protocol resource limits fail explicitly instead of truncating the changed-file inventory.
+
 Stdout must contain only one JSON object, with optional surrounding whitespace.
 Progress events, markdown fences, banners, and multiple JSON objects are invalid.
 Use stderr for brief diagnostics. Nonzero exit status always means failure, even
@@ -148,7 +192,8 @@ if stdout contains an otherwise valid response.
 
 ## Limits, environment, and recovery
 
-`ReviewChatClient()` defaults to a 120-second process timeout, a 1 MiB serialized
+`ReviewChatClient()` defaults to a 120-second chat process timeout (660 seconds for
+worktree reviews, whose adapter provider deadline is 600 seconds), a 1 MiB serialized
 request cap, a 1 MiB stdout cap, and a 64 KiB stderr cap. Its initializer can set
 smaller or larger positive limits. Oversized requests are rejected before launch;
 output exceeding either cap stops the process rather than silently truncating it.
@@ -244,11 +289,15 @@ Plan mode alone is not a sufficient tool restriction. Managed policy settings,
 including policy hooks, can still apply in safe mode. See the official
 [Claude CLI reference](https://code.claude.com/docs/en/cli-reference).
 
-Both modes run in a fresh temporary directory, not the repository; the supplied
-context is their source of PR information. Both use an environment allowlist like
+For chat and legacy excerpt reviews, both modes run in a fresh temporary directory;
+the supplied context is their source of PR information. Worktree reviews use the
+prepared repository and private manifest/context files described above, with
+Codex web search disabled and Claude Read/Grep/Glob tools enabled in restricted mode.
+Both use an environment allowlist like
 the core client, adding the OS-derived USER and the chosen CLI's directory to PATH for installations
 whose launcher needs a sibling interpreter. The adapter has a 100-second default
-deadline (`--timeout` can set a value above zero and at most 110), a 512 KiB provider
+chat deadline (`--timeout` can set a value above zero and at most 110; worktree
+review default/maximum is 600 seconds), a 512 KiB provider
 answer limit, and a 64 KiB provider stderr limit. Codex additionally has an 8 MiB
 total event-stream limit and a 2 MiB maximum event line; events are decoded
 incrementally and progress is discarded instead of accumulated. It keeps the provider in its own
@@ -328,7 +377,8 @@ array field); do not paste the shell command above into the executable field.
 The provider saved in **Settings → Workspace chat and reviews → Configure chat
 agent…** is shared by chat and the PR's **Agent review** button. There is no
 separate review-worker setup. **Test connection** checks a small chat exchange;
-a PR review also needs a structured findings response and may take longer.
+a PR review also needs a configured repository checkout/worktree root in Workspace,
+a structured findings/coverage response, and may take up to ten minutes.
 
 A logged-out Claude CLI reports a sign-in error; run `claude auth login` in Terminal
 before testing again. Provider tokens from the launching shell are intentionally

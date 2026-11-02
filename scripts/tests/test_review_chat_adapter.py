@@ -394,6 +394,231 @@ emit_answer(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
         self.assertIn(b"executable", result.stderr)
         self.assertEqual(result.stdout, b"")
 
+    def repository_request(self):
+        repository = self.directory / "repository"
+        repository.mkdir()
+        def git(*arguments):
+            return subprocess.check_output(["/usr/bin/git", *arguments], cwd=repository,
+                env={"PATH": "/usr/bin:/bin", "HOME": str(self.directory),
+                     "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}).decode().strip()
+        git("init", "-q")
+        git("config", "user.name", "Fixture")
+        git("config", "user.email", "fixture@example.invalid")
+        (repository / "surrounding.txt").write_text("surrounding repository context")
+        git("add", ".")
+        git("commit", "-qm", "base")
+        base = git("rev-parse", "HEAD")
+        paths = ["file-%02d.txt" % i for i in range(18)]
+        for path in paths:
+            (repository / path).write_text("complete file text " * 2000)
+        git("add", ".")
+        git("commit", "-qm", "head")
+        head = git("rev-parse", "HEAD")
+        leased = self.directory / "leased worktree"
+        git("worktree", "add", "--detach", str(leased), head)
+        repository = leased
+        context = self.directory / "context"
+        context.mkdir(mode=0o700)
+        files = []
+        for index, path in enumerate(paths):
+            patch = context / ("patch-%d.diff" % index)
+            patch.write_text("untruncated patch " * 2000)
+            patch.chmod(0o600)
+            files.append({"path": path, "status": "A", "patchFile": str(patch),
+                          "isBinary": False, "isSymlink": False})
+        manifest = {"version": 1, "headSHA": head, "baseSHA": base, "mergeBaseSHA": base,
+                    "worktreePath": str(repository), "files": files}
+        (context / "manifest.json").write_text(json.dumps(manifest))
+        (context / "discussion.json").write_text(json.dumps({"discussion": "all published and local draft context"}))
+        for path in context.iterdir():
+            path.chmod(0o600)
+        request = {**REQUEST, "task": "worktree_review", "headSHA": head,
+                   "repository": {key: manifest[key] for key in ("worktreePath", "headSHA", "baseSHA", "mergeBaseSHA")}}
+        request["repository"].update(contextDirectory=str(context), manifestPath=str(context / "manifest.json"))
+        return request, paths
+
+    def worktree_review(self, request, provider="codex", extra=()):
+        return self.run_adapter(provider, raw=json.dumps(request).encode(), extra=extra)
+
+    def test_worktree_review_reads_complete_repository_and_context_with_restricted_native_schema(self):
+        request, paths = self.repository_request()
+        observed = self.directory / "observed.json"
+        self.fake("import json,os,sys\nfrom pathlib import Path\n"
+                  "request=json.loads(sys.stdin.read().split('\\nREQUEST_JSON:\\n')[1])\n"
+                  "repository=request['repository']\n"
+                  "manifest=json.loads(Path(repository['manifestPath']).read_text())\n"
+                  "assert Path('surrounding.txt').read_text()=='surrounding repository context'\n"
+                  "assert all(len(Path(item['path']).read_bytes())>24000 and len(Path(item['patchFile']).read_bytes())>24000 for item in manifest['files'])\n"
+                  "assert 'all published' in (Path(repository['contextDirectory'])/'discussion.json').read_text()\n"
+                  "schema=json.loads(Path(sys.argv[sys.argv.index('--output-schema')+1]).read_text()) if '--output-schema' in sys.argv else json.loads(sys.argv[sys.argv.index('--json-schema')+1])\n"
+                  "Path(" + repr(str(observed)) + ").write_text(json.dumps({'argv':sys.argv[1:],'cwd':os.getcwd(),'schema':schema}))\n"
+                  "payload={'answer':'Repository inspected','citations':[],'findings':[], 'coverage':{'reviewedPaths':[item['path'] for item in manifest['files']], 'unreviewed':[], 'testsRun':[], 'limitations':[]}}\n"
+                  "emit_answer(json.dumps({'type':'result','is_error':False,'structured_output':payload} if '--json-schema' in sys.argv else payload))")
+        for provider in ("codex", "claude"):
+            result = self.worktree_review(request, provider)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["coverage"]["reviewedPaths"], paths)
+            actual = json.loads(observed.read_text())
+            self.assertEqual(Path(actual["cwd"]).resolve(), Path(request["repository"]["worktreePath"]).resolve())
+            argv = actual["argv"]
+            if provider == "codex":
+                self.assertIn('web_search="disabled"', argv)
+                self.assertIn("coverage", actual["schema"]["required"])
+                self.assertIn("--output-schema", argv)
+            else:
+                self.assertIn("--restricted", argv)
+                self.assertEqual(argv[argv.index("--tools")+1], "Read,Grep,Glob")
+                self.assertEqual(argv[argv.index("--add-dir")+1], request["repository"]["contextDirectory"])
+                schema = json.loads(argv[argv.index("--json-schema")+1])
+                self.assertIn("coverage", schema["required"])
+
+    def test_worktree_coverage_requires_valid_complete_accounting_and_no_test_execution(self):
+        request, paths = self.repository_request()
+        valid = {"reviewedPaths": paths[:1], "unreviewed": [], "testsRun": [], "limitations": []}
+        bad = [None, {**valid, "reviewedPaths": ["unknown"]}, {**valid, "reviewedPaths": paths[:1]*2},
+               {**valid, "unreviewed": [{"path": paths[0], "reason": "skip"}]},
+               {**valid, "testsRun": ["pytest"]}, {**valid, "limitations": ["x"*16385]}]
+        for coverage in [valid, *bad]:
+            payload = {"answer": "Inspected", "citations": [], "findings": []}
+            if coverage is not None:
+                payload["coverage"] = coverage
+            self.fake("emit_answer(" + repr(json.dumps(payload)) + ")")
+            result = self.worktree_review(request)
+            self.assertEqual(result.returncode == 0, coverage == valid, result.stderr)
+            if coverage == valid:
+                self.assertEqual([item["path"] for item in json.loads(result.stdout)["coverage"]["unreviewed"]], paths[1:])
+            else:
+                self.assertEqual(result.stdout, b"")
+                self.assertIn(b"invalidReviewResponse", result.stderr)
+
+    def test_worktree_invalid_identity_and_escaping_manifest_never_launch_provider(self):
+        request, paths = self.repository_request()
+        marker = self.directory / "started"
+        self.fake("open(" + repr(str(marker)) + ",'w').close()")
+        manifest_path = Path(request["repository"]["manifestPath"])
+        original = json.loads(manifest_path.read_text())
+        for mutate in [lambda value: value.update(headSHA="a"*40),
+                       lambda value: value["files"][0].update(patchFile=str(self.directory / "outside")),
+                       lambda value: value["files"][0].update(path="../outside"),
+                       lambda value: value.update(mergeBaseSHA="a"*40),
+                       lambda value: value["files"].pop(),
+                       lambda value: value["files"][0].update(status="D")]:
+            value = json.loads(json.dumps(original))
+            mutate(value)
+            manifest_path.write_text(json.dumps(value))
+            result = self.worktree_review(request)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(marker.exists())
+            self.assertIn(b"invalidRepositoryContext", result.stderr)
+        manifest_path.write_text(json.dumps(original))
+        request["repository"]["headSHA"] = "a"*40
+        request["headSHA"] = "a"*40
+        result = self.worktree_review(request)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(marker.exists())
+
+    def test_worktree_empty_pinned_diff_requires_explicit_empty_coverage(self):
+        request, paths = self.repository_request()
+        request["repository"]["baseSHA"] = request["headSHA"]
+        request["repository"]["mergeBaseSHA"] = request["headSHA"]
+        manifest_path = Path(request["repository"]["manifestPath"])
+        manifest = json.loads(manifest_path.read_text())
+        manifest.update(baseSHA=request["headSHA"], mergeBaseSHA=request["headSHA"], files=[])
+        manifest_path.write_text(json.dumps(manifest))
+        payload = {"answer": "No changed files", "citations": [], "findings": [], "coverage": {"reviewedPaths": [], "unreviewed": [], "testsRun": [], "limitations": []}}
+        self.fake("emit_answer(" + repr(json.dumps(payload)) + ")")
+        result = self.worktree_review(request)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["coverage"]["reviewedPaths"], [])
+
+    def test_worktree_context_requires_private_regular_files_and_cancellation_stops_provider(self):
+        request, paths = self.repository_request()
+        context = Path(request["repository"]["contextDirectory"])
+        marker = self.directory / "started"
+        self.fake("open(" + repr(str(marker)) + ",'w').close()")
+        discussion = context / "discussion.json"
+        original = discussion.read_bytes()
+        discussion.chmod(0o644)
+        result = self.worktree_review(request)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(marker.exists())
+        discussion.unlink()
+        outside = self.directory / "outside.json"
+        outside.write_bytes(original)
+        outside.chmod(0o600)
+        discussion.symlink_to(outside)
+        result = self.worktree_review(request)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(marker.exists())
+        discussion.unlink()
+        discussion.symlink_to(discussion.name)
+        result = self.worktree_review(request)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(marker.exists())
+        self.assertIn(b"invalidRepositoryContext", result.stderr)
+        self.assertNotIn(b"Traceback", result.stderr)
+        discussion.unlink()
+        discussion.write_bytes(original)
+        discussion.chmod(0o600)
+        self.fake("import os,signal,time\nsignal.signal(signal.SIGTERM,signal.SIG_IGN)\nopen(" + repr(str(marker)) + ",'w').write(str(os.getpid()))\ntime.sleep(30)")
+        process = subprocess.Popen(self.command(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, cwd=self.directory, env=self.environment)
+        try:
+            process.stdin.write(json.dumps(request).encode())
+            process.stdin.close()
+            for _ in range(200):
+                if marker.exists():
+                    break
+                time.sleep(0.01)
+            self.assertTrue(marker.exists())
+            pid = int(marker.read_text())
+            process.terminate()
+            process.wait(timeout=3)
+            self.assertIn(b"cancelled", process.stderr.read())
+            self.assert_gone(pid)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            process.stdout.close()
+            process.stderr.close()
+
+    def test_worktree_review_ignores_replacement_refs_and_grafts_for_pinned_objects(self):
+        request, paths = self.repository_request()
+        worktree = request["repository"]["worktreePath"]
+        git_environment = {"PATH": "/usr/bin:/bin", "HOME": str(self.directory),
+                           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+        def git(*arguments):
+            return subprocess.check_output(["/usr/bin/git", *arguments], cwd=worktree,
+                                           env=git_environment).decode().strip()
+        self.fake("import os,json\n"
+                  "assert os.environ.get('GIT_NO_REPLACE_OBJECTS')=='1'\n"
+                  "assert os.environ.get('GIT_GRAFT_FILE')=='/dev/null'\n"
+                  "emit_answer(" + repr(json.dumps({"answer": "Pinned objects inspected", "citations": [], "findings": [],
+                       "coverage": {"reviewedPaths": paths, "unreviewed": [], "testsRun": [], "limitations": []}})) + ")")
+        git("replace", request["headSHA"], request["repository"]["baseSHA"])
+        replaced = self.worktree_review(request)
+        self.assertEqual(replaced.returncode, 0, replaced.stderr)
+        self.assertEqual(json.loads(replaced.stdout)["coverage"]["reviewedPaths"], paths)
+        git("replace", "-d", request["headSHA"])
+        graft_file = Path(git("rev-parse", "--path-format=absolute", "--git-path", "info/grafts"))
+        graft_file.parent.mkdir(parents=True, exist_ok=True)
+        graft_file.write_text(request["headSHA"] + "\n")
+        grafted = self.worktree_review(request)
+        self.assertEqual(grafted.returncode, 0, grafted.stderr)
+        self.assertEqual(json.loads(grafted.stdout)["coverage"]["reviewedPaths"], paths)
+        # Neither validation nor the fake read-only provider changes this Git metadata.
+        self.assertEqual(graft_file.read_text(), request["headSHA"] + "\n")
+
+    def test_worktree_timeout_accepts_extended_deadline_but_legacy_stays_bounded(self):
+        request, paths = self.repository_request()
+        payload = {"answer": "Inspected", "citations": [], "findings": [],
+                   "coverage": {"reviewedPaths": paths, "unreviewed": [], "testsRun": [], "limitations": []}}
+        self.fake("emit_answer(" + repr(json.dumps(payload)) + ")")
+        self.assertEqual(self.worktree_review(request, extra=("--timeout", "600")).returncode, 0)
+        self.assertNotEqual(self.run_adapter(extra=("--timeout", "600")).returncode, 0)
+        self.assertNotEqual(self.worktree_review(request, extra=("--timeout", "601")).returncode, 0)
+
     def assert_gone(self, pid):
         try:
             os.kill(pid, 0)

@@ -143,10 +143,12 @@ struct ReviewDetailView: View {
                     if review.draft.hasUnsubmittedComments { Button("Publish all…") { openSubmission() }.controlSize(.small).disabled(review.submitting || !review.local.canSave) }
                 }
                 if let last = review.draft.lastAgentReview {
+                    Text(last.coverageLabel).font(.subheadline.weight(.medium))
+                        .foregroundStyle(last.coverage == nil || last.contextIncomplete ? Color.orange : Color.secondary)
                     DisclosureGroup("Latest \(last.provider) review · \(last.findingCount) findings") {
                         Text(last.completedAt, style: .relative).font(.caption).foregroundStyle(.secondary)
                         AgentMarkdownView(text: last.summary)
-                        if last.contextIncomplete { Text("The agent reviewed incomplete context.").font(.caption).foregroundStyle(.orange) }
+                        ReviewCoverageSummary(receipt: last, headSHA: snapshot.headSHA, baseSHA: snapshot.baseSHA)
                     }
                 }
                 if review.draft.allDraftCount == 0 { Text("No local draft comments.").foregroundStyle(.secondary) }
@@ -266,5 +268,50 @@ struct ReviewSubmissionView: View {
     }
     private func post() {
         if canSubmit, let choice = PRReviewEvent(rawValue: event) { review.submit(event: choice, target: target.identity) }
+    }
+}
+
+private struct ReviewCoverageSummary: View {
+    let receipt: WorkspaceAgentReviewReceipt
+    let headSHA: String
+    let baseSHA: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let coverage = receipt.coverage {
+                Text("Coverage is reported by the agent. Reviewing every file does not prove the PR is defect-free.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Head \(headSHA.prefix(12)) · Base \(baseSHA.prefix(12)) · Merge base \((receipt.mergeBaseSHA ?? baseSHA).prefix(12))")
+                    .font(.caption.monospaced()).textSelection(.enabled)
+                Text("Test execution was not requested. The agent reported no tests run.")
+                    .font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup("Files reported reviewed (\(coverage.reviewedPaths.count))") {
+                    ForEach(coverage.reviewedPaths, id: \.self) { path in
+                        Text(path).font(.caption.monospaced()).textSelection(.enabled)
+                    }
+                }
+                if !coverage.unreviewed.isEmpty {
+                    Text("Files not reviewed (\(coverage.unreviewed.count))").font(.subheadline.bold()).foregroundStyle(.orange)
+                    ForEach(coverage.unreviewed, id: \.path) { file in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(file.path).font(.caption.monospaced())
+                            Text(file.reason).font(.caption).foregroundStyle(.secondary)
+                        }.textSelection(.enabled)
+                    }
+                }
+                if !coverage.limitations.isEmpty {
+                    Text("Reported limitations").font(.subheadline.bold()).foregroundStyle(.orange)
+                    ForEach(coverage.limitations, id: \.self) { value in Text(value).font(.caption).textSelection(.enabled) }
+                }
+            } else {
+                Text("This historical review used patch excerpts. Full-file coverage was not recorded; an empty findings list is not a whole-PR review.")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            if let notices = receipt.sourceNotices, !notices.isEmpty {
+                DisclosureGroup("Additional GitHub API context notices") {
+                    ForEach(notices, id: \.self) { value in Text(value).font(.caption).foregroundStyle(.secondary) }
+                }
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
     }
 }

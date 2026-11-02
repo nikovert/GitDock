@@ -12,7 +12,12 @@ struct ReviewAgentActionsView: View {
         (try? JSONDecoder().decode(ReviewChatConfiguration.self, from: configurationData)) ?? ReviewChatConfiguration()
     }
     private var configured: Bool { (try? configuration.validated()) != nil }
-    private var canReview: Bool { allowsActions && configured && review.identity != nil && !review.loading && !review.reviewing && !review.sinceLastReview && review.local.canSave }
+    private var supportsWorktree: Bool { configuration.provider == .codex || configuration.provider == .claude }
+    private var hasCheckout: Bool {
+        guard let repository = review.snapshot?.key.repositoryNameWithOwner else { return false }
+        return workspace.document.configuration.repositoryCheckouts[repository]?.isEmpty == false
+    }
+    private var canReview: Bool { allowsActions && configured && supportsWorktree && hasCheckout && review.identity != nil && !review.loading && !review.reviewing && !review.sinceLastReview && review.local.canSave }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -32,7 +37,20 @@ struct ReviewAgentActionsView: View {
             if let error = review.agentReviewErrorMessage {
                 Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
             }
+            if let path = review.agentReviewWorktreePath, review.reviewing {
+                Label("Inspecting a separate read-only worktree", systemImage: "folder.badge.gearshape")
+                    .font(.caption).foregroundStyle(.secondary).help(path)
+            }
+            if let warning = review.agentReviewCleanupMessage {
+                Text(warning).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
+            }
             if !configured { Button("Configure review agent…") { showsSettings = true }.font(.caption) }
+            else if !supportsWorktree {
+                Button("Choose Codex or Claude for worktree reviews…") { showsSettings = true }.font(.caption)
+            }
+            if !hasCheckout, !review.reviewing {
+                Button("Configure a repository checkout for worktree reviews…") { review.tab = .workspace }.font(.caption)
+            }
         }
         .sheet(isPresented: $showsSettings) { ReviewChatSettingsView() }
         .sheet(item: $fixTarget) { target in
@@ -45,7 +63,7 @@ struct ReviewAgentActionsView: View {
         Button { review.runAgentReview(configuration: configuration) } label: {
             Label("Agent review", systemImage: "wand.and.stars")
         }.disabled(!canReview)
-            .help("Review this PR with the selected local provider. Findings are saved as drafts and are never published automatically.")
+            .help("Prepare a fresh worktree at this PR's head and inspect all changed files with the selected provider. Findings stay local; coverage is reported explicitly.")
     }
     private var fixesButton: some View {
         Button {

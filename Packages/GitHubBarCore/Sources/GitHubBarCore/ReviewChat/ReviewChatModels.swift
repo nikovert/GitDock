@@ -99,6 +99,7 @@ public struct ReviewChatCitation: Codable, Equatable, Sendable {
 
 public enum ReviewChatTask: String, Codable, Sendable {
     case review
+    case worktreeReview = "worktree_review"
 }
 
 /// Advisory comments only. Coordinates must be resolved against the exact PR snapshot before attachment.
@@ -142,9 +143,11 @@ public struct ReviewChatRequest: Codable, Sendable {
     public var policy: String
     public var messages: [ReviewChatMessage]
     public var task: ReviewChatTask?
+    public var repository: ReviewRepositoryContext?
 
     public init(accountLogin: String, prURL: String, headSHA: String, question: String,
-                context: String, policy: String, messages: [ReviewChatMessage], task: ReviewChatTask? = nil) {
+                context: String, policy: String, messages: [ReviewChatMessage], task: ReviewChatTask? = nil,
+                repository: ReviewRepositoryContext? = nil) {
         self.accountLogin = accountLogin
         self.prURL = prURL
         self.headSHA = headSHA
@@ -153,6 +156,7 @@ public struct ReviewChatRequest: Codable, Sendable {
         self.policy = policy
         self.messages = messages
         self.task = task
+        self.repository = repository
     }
 }
 
@@ -162,14 +166,16 @@ public struct ReviewChatResponse: Codable, Equatable, Sendable {
     public var answer: String
     public var citations: [ReviewChatCitation]
     public var findings: [ReviewAgentFinding]?
+    public var coverage: ReviewCoverage?
 
     public init(prURL: String, headSHA: String, answer: String, citations: [ReviewChatCitation],
-                findings: [ReviewAgentFinding]? = nil) {
+                findings: [ReviewAgentFinding]? = nil, coverage: ReviewCoverage? = nil) {
         self.prURL = prURL
         self.headSHA = headSHA
         self.answer = answer
         self.citations = citations
         self.findings = findings
+        self.coverage = coverage
     }
 }
 
@@ -182,14 +188,15 @@ public protocol ReviewChatServicing: Sendable {
 /// Provider output and arbitrary adapter message strings are never displayed.
 public enum ReviewChatAdapterFailure: String, Codable, Equatable, Sendable {
     case providerTimedOut, providerNotAuthenticated, providerFailed, invalidReviewResponse, adapterFailed
-    case invalidRequest, invalidExecutable, invalidTimeout, invalidProviderResponse, providerOutputLimit
+    case invalidRequest, invalidRepositoryContext, invalidExecutable, invalidTimeout, invalidProviderResponse, providerOutputLimit
     case providerDiagnosticsLimit, requestLimitExceeded, responseLimitExceeded, cancelled
 
     public var recoveryMessage: String {
         switch self {
         case .invalidRequest: return "The app's review request did not match the adapter protocol. Update GitHubBar and report the PR URL if this persists."
+        case .invalidRepositoryContext: return "The repository review context is invalid or stale. Prepare a fresh review worktree and retry. No drafts were imported."
         case .invalidExecutable: return "The configured provider executable is missing or cannot be run. Choose an installed Codex or Claude CLI in agent settings."
-        case .invalidTimeout: return "The adapter timeout setting is invalid. Choose a value above zero and at most 110 seconds."
+        case .invalidTimeout: return "The adapter timeout setting is invalid. Choose a value above zero and at most 110 seconds (600 for repository reviews)."
         case .invalidProviderResponse: return "The provider returned an empty or invalid-text response. Check its CLI output mode and retry."
         case .providerOutputLimit: return "The provider's answer exceeded the response limit. Request a smaller review or shorter answer."
         case .providerDiagnosticsLimit: return "The provider diagnostics exceeded the limit. Check the CLI's local logging and settings warnings."

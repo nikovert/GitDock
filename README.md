@@ -51,8 +51,10 @@ chat panel shows an example advisory answer.*
   conversation, code, local notes, and attached sessions.
 - **Inline drafts and review submission.** Select a line, save a comment locally,
   then explicitly post that draft or submit a batch Comment, Approval, or Request changes review to GitHub.
-- **Agent reviews become drafts.** Click **Agent review**, inspect findings in Threads
-  or the diff, then publish all or individual comments when ready.
+- **Review the whole PR in a worktree.** Configure a checkout in Workspace, then
+  click **Agent review** with Codex or Claude. It inspects a fresh PR worktree with
+  complete patches and surrounding code. Threads shows reported file coverage and
+  limitations. Findings stay local until you publish all or individual comments.
 - **Fix comments with an agent.** **Have an agent make all fixes…** shows editable
   instructions and starts Codex/Claude in a fresh PR worktree to assess comments,
   apply fixes, test, and commit locally. Follow the session in Terminal.
@@ -90,9 +92,13 @@ connection** verifies a response. Chat stays advisory. Publish individual inline
 drafts or a batch Comment, Approve, or Request changes review with explicit workspace
 controls. Inline-only Comment reviews do not need a summary.
 
-Use **Agent review** to collect actionable findings as local drafts, or **Have an
+Use **Agent review** to inspect a fresh PR worktree and collect findings as local
+drafts. Reported coverage makes partial reviews visible; no excerpt fallback is
+used. The review does not request test execution or code changes. Use **Have an
 agent make all fixes…** to assess comments and start a fix/test/local-commit session.
 Both actions are explicit. See the [review workflow guide](docs/review-workspace.md).
+
+![Worktree review in Threads, with a prominent partial-coverage count at minimum window width](docs/assets/workspace-worktree-review-partial-light.png)
 
 ![Agent fixes sheet with editable default instructions and Codex/Claude selection](docs/assets/agent-fixes-light.png)
 

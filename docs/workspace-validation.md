@@ -59,6 +59,58 @@ and publish all on a disposable PR. Try cancellation and unavailable locations.
 Configure a disposable checkout, inspect the fixes prompt, launch Codex/Claude,
 and verify its tests and actual local commit in Terminal. Confirm no automatic push.
 
+## Complete worktree agent reviews (2026-11-02)
+
+The `feat/worktree-agent-review` follow-up replaces the app's excerpt review with a
+fresh detached checkout at the captured PR head and a complete native
+merge-base-to-head manifest. Ordinary chat keeps its bounded context. Findings
+still enter the shared local draft store and require explicit publication.
+
+- **Core: 221 tests passed.** New coverage includes full 24-file manifests and
+  patches larger than 96 KiB, merge-base baselines, rename/delete/binary/symlink
+  entries, wrong origins/commits, shallow/unsafe setup, dirty/replaced artifacts,
+  hidden index edits, cancellation after worktree creation, owned process-group
+  termination, malicious Git filters, and replacement refs/grafts. A cross-seam
+  fixture runs the real manager → Swift client → bundled Python adapter → fake
+  Codex CLI, reads every patch/baseline plus full current/surrounding files, returns
+  coverage for all 24 paths, and verifies native validation and clean removal.
+- **Python: 34 tests passed.** Controlled Codex/Claude fixtures cover native schemas,
+  file inventory/identity/permissions, complete and partial coverage, invalid paths,
+  symlink escapes, extended deadlines, cancellation and provider failures. Legacy
+  chat/excerpt behavior and diagnostic bounds remain covered.
+- **App: 95 repository tests passed** in a temporary SwiftPM harness compiling all
+  app sources except its application entry point, without Sparkle. An additional
+  harness-only test initializes AppKit. This includes 19 agent-action tests for
+  native coverage beyond the API snapshot, no excerpt fallback, custom-provider
+  guidance, cancelled preparation, validation/missing-coverage failures, draft
+  preservation, final commit changes during cleanup, original discussion notices,
+  and retained-worktree warnings. Legacy receipt decoding and coverage persistence
+  are covered. Eight existing `PRNavigationTests` are excluded from this harness:
+  native status/popover creation terminates this test host before completion, even
+  though it returns exit status zero. A truncated run is not counted as success.
+- `scripts/check.sh` passed: core executable checks, strict Swift 6/concurrency app
+  typecheck, avatar/menu sizing checks, plist validation and project generation.
+- Native bitmap rendering passed and was visually inspected in light/dark modes
+  at 900, 1380 and 1800 points. A partial review is visibly labelled outside the
+  receipt disclosure. Updated examples are in `docs/assets/workspace-worktree-review-*`.
+- Independent review identified raw Git replacement semantics, a target check
+  occurring before awaited cleanup, and lost original input notices. All were
+  corrected with focused regression fixtures and a clean final re-review.
+
+No installed provider or private repository content was used for this verification;
+the integration uses local Git and controlled CLI fixtures. A real provider's
+reported coverage is not proof every line was read or that a PR is defect-free.
+The workflow requests inspection only, rejects claimed test execution, and does
+not request dependency installs, edits, commits, or GitHub writes.
+
+For installed-build testing, configure the repository checkout/worktree root in
+Workspace and choose Codex or Claude. Review a PR with more than six files and a
+large patch; compare the manifest denominator to the PR's changed files, inspect
+any skipped reasons/limitations, and verify drafts remain local. Try Stop, account
+navigation and a changed PR head; no late findings should attach. Clean temporary
+trees should disappear; dirty ones should be retained with a visible path. The
+native Dock/popover/divider interaction checks below still require a person.
+
 ## Approval classification live check
 
 The supplied [carbo PR #12853](https://github.com/carbon-re/carbo/pull/12853) returned

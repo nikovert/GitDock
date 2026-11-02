@@ -4,13 +4,15 @@ import Foundation
 /// One bounded, advisory JSON exchange per process. No shell or GitHub transport is used.
 public struct ReviewChatClient: ReviewChatServicing {
     private let timeout: TimeInterval
+    private let worktreeTimeout: TimeInterval
     private let maximumOutputBytes: Int
     private let maximumErrorBytes: Int
     private let maximumRequestBytes: Int
 
-    public init(timeout: TimeInterval = 120, maximumOutputBytes: Int = 1_048_576,
+    public init(timeout: TimeInterval = 120, worktreeTimeout: TimeInterval = 660, maximumOutputBytes: Int = 1_048_576,
                 maximumErrorBytes: Int = 65_536, maximumRequestBytes: Int = 1_048_576) {
         self.timeout = timeout
+        self.worktreeTimeout = worktreeTimeout
         self.maximumOutputBytes = maximumOutputBytes
         self.maximumErrorBytes = maximumErrorBytes
         self.maximumRequestBytes = maximumRequestBytes
@@ -20,13 +22,21 @@ public struct ReviewChatClient: ReviewChatServicing {
                      configuration: ReviewChatConfiguration) async throws -> ReviewChatResponse {
         try Task.checkCancellation()
         try configuration.validated()
-        guard timeout.isFinite, timeout > 0, maximumOutputBytes > 0,
+        let deadline = request.task == .worktreeReview ? worktreeTimeout : timeout
+        guard deadline.isFinite, deadline > 0, maximumOutputBytes > 0,
               maximumErrorBytes > 0, maximumRequestBytes > 0 else {
             throw ReviewChatError.invalidConfiguration("Chat timeout and byte limits must be positive and finite.")
         }
+        if request.task == .worktreeReview {
+            guard let repository = request.repository, repository.headSHA == request.headSHA,
+                  configuration.provider == .codex || configuration.provider == .claude else {
+                throw ReviewChatError.invalidResponse
+            }
+            try repository.validated()
+        }
         let input = try JSONEncoder().encode(request)
         guard input.count <= maximumRequestBytes else { throw ReviewChatError.requestLimitExceeded }
-        let output = try await exchange(input, configuration: configuration)
+        let output = try await exchange(input, configuration: configuration, timeout: deadline)
         try Task.checkCancellation()
         guard let response = try? JSONDecoder().decode(ReviewChatResponse.self, from: output),
               !response.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -36,16 +46,20 @@ public struct ReviewChatClient: ReviewChatServicing {
         guard response.prURL == request.prURL, response.headSHA == request.headSHA else {
             throw ReviewChatError.mismatchedResponse
         }
-        if request.task == .review && response.findings == nil {
+        if (request.task == .review || request.task == .worktreeReview) && response.findings == nil {
             throw ReviewChatError.invalidResponse
         }
         if let findings = response.findings, !ReviewAgentFinding.areValid(findings) {
             throw ReviewChatError.invalidResponse
         }
+        if request.task == .worktreeReview {
+            guard let coverage = response.coverage else { throw ReviewChatError.invalidResponse }
+            try coverage.validated()
+        }
         return response
     }
 
-    private func exchange(_ input: Data, configuration: ReviewChatConfiguration) async throws -> Data {
+    private func exchange(_ input: Data, configuration: ReviewChatConfiguration, timeout: TimeInterval) async throws -> Data {
         let process = Process()
         let stdin = Pipe()
         let stdout = Pipe()

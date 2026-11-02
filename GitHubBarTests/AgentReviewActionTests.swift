@@ -16,9 +16,11 @@ final class AgentReviewActionTests: XCTestCase {
         f.model.runAgentReview(configuration: configuration)
         await f.chat.waitFor(1)
         let requests = await f.chat.requests
-        XCTAssertEqual(requests.first?.task, .review)
-        XCTAssertTrue(requests.first?.context.contains("Published discussion") == true)
-        XCTAssertTrue(requests.first?.context.contains("file.swift") == true)
+        XCTAssertEqual(requests.first?.task, .worktreeReview)
+        XCTAssertNotNil(requests.first?.repository)
+        let discussions = await f.chat.discussions
+        XCTAssertTrue(discussions.first?.contains("Published discussion") == true)
+        XCTAssertTrue(discussions.first?.contains("file.swift") == true)
         await f.chat.finish(0, findings: [
             ReviewAgentFinding(body: "Old side issue", path: "file.swift", line: 1, side: "LEFT"),
             ReviewAgentFinding(body: "New side issue", path: "file.swift", line: 1, side: "RIGHT"),
@@ -216,30 +218,179 @@ final class AgentReviewActionTests: XCTestCase {
         XCTAssertTrue(context.text.contains("CONTEXT IS INCOMPLETE"))
     }
 
+    func testWorktreeReviewReportsAllNativeFilesBeyondSnapshotAndPartialCoverage() async throws {
+        let f = try fixture()
+        defer { f.defaults.removePersistentDomain(forName: f.suite) }
+        await open(f.model)
+        let paths = ["file.swift"] + (1...16).map { "native-file-\($0).swift" }
+        await f.worktrees.setPaths(paths)
+        f.model.runAgentReview(configuration: configuration)
+        await f.chat.waitFor(1)
+        let requests = await f.chat.requests
+        let directories = await f.chat.directories
+        XCTAssertEqual(directories.first, requests.first?.repository?.worktreePath)
+        await f.chat.finish(0, findings: [], coverage: ReviewCoverage(reviewedPaths: ["file.swift"], unreviewed: [], testsRun: [], limitations: []))
+        await f.model.agentReviewTask?.value
+        XCTAssertEqual(f.model.draft.lastAgentReview?.changedFileCount, 17)
+        XCTAssertEqual(f.model.draft.lastAgentReview?.coverage?.unreviewed.count, 16)
+        XCTAssertTrue(f.model.agentReviewMessage?.contains("Partial") == true)
+        XCTAssertTrue(f.model.agentReviewMessage?.contains("1/17") == true)
+        let releases = await f.worktrees.releases
+        XCTAssertEqual(releases.count, 1)
+    }
+
+    func testWorktreeReviewPreservesAllFindingsOnlyAfterValidationAndFreshCommitCheck() async throws {
+        let f = try fixture()
+        defer { f.defaults.removePersistentDomain(forName: f.suite) }
+        await open(f.model)
+        f.model.runAgentReview(configuration: configuration)
+        await f.chat.waitFor(1)
+        f.model.editDraft { $0.body = "Edited during review" }
+        await f.service.changeBase()
+        await f.chat.finish(0, findings: [ReviewAgentFinding(body: "Stale finding")])
+        await f.model.agentReviewTask?.value
+        XCTAssertEqual(f.model.draft.body, "Edited during review")
+        XCTAssertTrue(f.model.draft.generalComments.isEmpty)
+        XCTAssertNotNil(f.model.agentReviewErrorMessage)
+        let releases = await f.worktrees.releases
+        XCTAssertEqual(releases.count, 1)
+    }
+
+    func testWorktreeValidationFailureAndMissingCoverageCannotMeanNoFindings() async throws {
+        let f = try fixture()
+        defer { f.defaults.removePersistentDomain(forName: f.suite) }
+        await open(f.model)
+        await f.worktrees.failValidation(true)
+        f.model.runAgentReview(configuration: configuration)
+        await f.chat.waitFor(1)
+        await f.chat.finish(0, findings: [])
+        await f.model.agentReviewTask?.value
+        XCTAssertNotNil(f.model.agentReviewErrorMessage)
+        XCTAssertNil(f.model.draft.lastAgentReview)
+        await f.worktrees.failValidation(false)
+        f.model.runAgentReview(configuration: configuration)
+        await f.chat.waitFor(2)
+        await f.chat.finish(1, findings: [], coverage: nil)
+        await f.model.agentReviewTask?.value
+        XCTAssertNotNil(f.model.agentReviewErrorMessage)
+        XCTAssertNil(f.model.draft.lastAgentReview)
+    }
+
+    func testCommitChangeDuringCleanupRejectsFindingsBeforeImport() async throws {
+        let f = try fixture()
+        defer { f.defaults.removePersistentDomain(forName: f.suite) }
+        await open(f.model)
+        await f.worktrees.holdRelease()
+        f.model.runAgentReview(configuration: configuration)
+        await f.chat.waitFor(1)
+        await f.chat.finish(0, findings: [ReviewAgentFinding(body: "Stale after cleanup")])
+        await f.worktrees.waitForRelease()
+        await f.service.changeBase()
+        f.model.editDraft { $0.body = "Keep my edits" }
+        await f.worktrees.finishRelease()
+        await f.model.agentReviewTask?.value
+        XCTAssertTrue(f.model.draft.generalComments.isEmpty)
+        XCTAssertNil(f.model.draft.lastAgentReview)
+        XCTAssertEqual(f.model.draft.body, "Keep my edits")
+        XCTAssertNotNil(f.model.agentReviewErrorMessage)
+    }
+
+    func testCancellationDuringPreparationReleasesLateLeaseWithoutCallingProvider() async throws {
+        let f = try fixture()
+        defer { f.defaults.removePersistentDomain(forName: f.suite) }
+        await open(f.model)
+        await f.worktrees.holdPreparation()
+        f.model.runAgentReview(configuration: configuration)
+        await f.worktrees.waitForPreparation()
+        let cancelled = f.model.agentReviewTask
+        f.model.cancelAgentReview()
+        await f.worktrees.finishPreparation()
+        await cancelled?.value
+        let requests = await f.chat.requests
+        let releases = await f.worktrees.releases
+        XCTAssertTrue(requests.isEmpty)
+        XCTAssertEqual(releases.count, 1)
+        XCTAssertNil(f.model.draft.lastAgentReview)
+    }
+
+    func testSetupFailureDoesNotFallBackToExcerptAndCustomProviderHasGuidance() async throws {
+        let f = try fixture()
+        defer { f.defaults.removePersistentDomain(forName: f.suite) }
+        await open(f.model)
+        await f.worktrees.failPreparation()
+        f.model.runAgentReview(configuration: configuration)
+        await f.model.agentReviewTask?.value
+        XCTAssertTrue(f.model.agentReviewErrorMessage?.contains("checkout") == true)
+        var custom = configuration; custom.provider = .custom
+        f.model.runAgentReview(configuration: custom)
+        await f.model.agentReviewTask?.value
+        XCTAssertTrue(f.model.agentReviewErrorMessage?.contains("Codex or Claude") == true)
+        let requests = await f.chat.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testCleanCoverageAndRetainedWorktreeWarningAreVisibleWithoutTouchingDrafts() async throws {
+        let f = try fixture()
+        defer { f.defaults.removePersistentDomain(forName: f.suite) }
+        await open(f.model)
+        await f.worktrees.retainWorktree()
+        f.model.runAgentReview(configuration: configuration)
+        await f.chat.waitFor(1)
+        await f.chat.finish(0, findings: [])
+        await f.model.agentReviewTask?.value
+        XCTAssertTrue(f.model.agentReviewMessage?.contains("1/1") == true)
+        XCTAssertTrue(f.model.agentReviewMessage?.contains("retained") == true)
+        XCTAssertEqual(f.model.draft.lastAgentReview?.coverage?.reviewedPaths, ["file.swift"])
+        XCTAssertFalse(f.model.draft.lastAgentReview?.contextIncomplete ?? true)
+        XCTAssertEqual(f.model.draft.allDraftCount, 0)
+    }
+
+    func testReviewReceiptPreservesNoticesFromTheDiscussionSuppliedToTheAgent() async throws {
+        let f = try fixture()
+        defer { f.defaults.removePersistentDomain(forName: f.suite) }
+        await f.service.setNotices(["Discussion fetch was incomplete"])
+        await open(f.model)
+        f.model.runAgentReview(configuration: configuration)
+        await f.chat.waitFor(1)
+        await f.service.setNotices([])
+        await f.chat.finish(0, findings: [])
+        await f.model.agentReviewTask?.value
+        XCTAssertEqual(f.model.draft.lastAgentReview?.sourceNotices, ["Discussion fetch was incomplete"])
+        XCTAssertFalse(f.model.draft.lastAgentReview?.contextIncomplete ?? true)
+    }
+
     private let key = try! PullRequestKey(url: URL(string: "https://github.com/acme/app/pull/1")!)
     private var configuration: ReviewChatConfiguration { ReviewChatConfiguration(displayName: "Codex", executable: "/usr/bin/true", workingDirectory: "/tmp", provider: .codex) }
     private func open(_ model: ReviewWorkspaceModel) async { model.select(key, account: "alice"); await model.loadTask?.value }
-    private func fixture() throws -> (suite: String, defaults: UserDefaults, model: ReviewWorkspaceModel, service: AgentActionPRService, chat: AgentActionChatService) {
+    private func fixture() throws -> (suite: String, defaults: UserDefaults, model: ReviewWorkspaceModel, service: AgentActionPRService, chat: AgentActionChatService, worktrees: AgentActionWorktreeService) {
         let suite = "AgentReviewAction-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         let service = AgentActionPRService()
         let chat = AgentActionChatService()
-        return (suite, defaults, ReviewWorkspaceModel(service: service, chatService: chat, local: ReviewWorkspaceState(defaults: defaults)), service, chat)
+        let worktrees = AgentActionWorktreeService()
+        return (suite, defaults, ReviewWorkspaceModel(service: service, chatService: chat, worktreeService: worktrees,
+            local: ReviewWorkspaceState(defaults: defaults)), service, chat, worktrees)
     }
 }
 
 private actor AgentActionChatService: ReviewChatServicing {
     var requests: [ReviewChatRequest] = []
+    var discussions: [String] = []
+    var directories: [String] = []
     var pending: [Int: CheckedContinuation<ReviewChatResponse, any Error>] = [:]
     func send(_ request: ReviewChatRequest, configuration: ReviewChatConfiguration) async throws -> ReviewChatResponse {
         let index = requests.count
         requests.append(request)
+        directories.append(configuration.workingDirectory)
+        if let repository = request.repository {
+            discussions.append((try? String(contentsOfFile: repository.contextDirectory + "/discussion.json", encoding: .utf8)) ?? "")
+        }
         return try await withCheckedThrowingContinuation { pending[index] = $0 }
     }
     func waitFor(_ count: Int) async { while requests.count < count { await Task.yield() } }
-    func finish(_ index: Int, findings: [ReviewAgentFinding]?) {
+    func finish(_ index: Int, findings: [ReviewAgentFinding]?, coverage: ReviewCoverage? = ReviewCoverage(reviewedPaths: ["file.swift"], unreviewed: [], testsRun: [], limitations: [])) {
         let request = requests[index]
-        pending.removeValue(forKey: index)?.resume(returning: ReviewChatResponse(prURL: request.prURL, headSHA: request.headSHA, answer: "Agent reviewed the available changes", citations: [], findings: findings))
+        pending.removeValue(forKey: index)?.resume(returning: ReviewChatResponse(prURL: request.prURL, headSHA: request.headSHA, answer: "Agent reviewed the available changes", citations: [], findings: findings, coverage: coverage))
     }
     func fail(_ index: Int) { pending.removeValue(forKey: index)?.resume(throwing: ReviewChatError.processFailed(1)) }
 }
@@ -249,16 +400,18 @@ private actor AgentActionPRService: PRReviewServicing {
     var submissions: [Submission] = []
     private var holds = false
     private var base = String(repeating: "b", count: 40)
+    private var notices: [String] = []
     private var failedWrite: Int?
     func failWrite(_ index: Int) { failedWrite = index }
     func changeBase() { base = String(repeating: "c", count: 40) }
+    func setNotices(_ value: [String]) { notices = value }
     private var write: CheckedContinuation<Void, Never>?
     func hold() { holds = true }
     func waitForWrite() async { while write == nil { await Task.yield() } }
     func finishWrite() { write?.resume(); write = nil }
     func load(key: PullRequestKey, accountLogin: String, sinceSHA: String?) async throws -> PRReviewSnapshot {
         PRReviewSnapshot(key: key, title: "Review PR", body: "Useful change", author: "other", createdAt: nil, updatedAt: .now,
-            headSHA: String(repeating: "a", count: 40), baseSHA: base, files: [PRSearchFile(path: "file.swift", patch: "@@ -1 +1 @@\n-old\n+new", additions: 1, deletions: 1)], notices: [], comments: [PRReviewComment(id: "issue:1", author: "sam", body: "Published discussion")], checksSummary: "Unknown", fileListComplete: true)
+            headSHA: String(repeating: "a", count: 40), baseSHA: base, files: [PRSearchFile(path: "file.swift", patch: "@@ -1 +1 @@\n-old\n+new", additions: 1, deletions: 1)], notices: notices, comments: [PRReviewComment(id: "issue:1", author: "sam", body: "Published discussion")], checksSummary: "Unknown", fileListComplete: true)
     }
     func submit(key: PullRequestKey, accountLogin: String, headSHA: String, baseSHA: String, event: PRReviewEvent,
                 body: String, comments: [PRReviewDraftComment]) async throws -> PRReviewSubmissionReceipt {
@@ -266,5 +419,52 @@ private actor AgentActionPRService: PRReviewServicing {
         if submissions.count == failedWrite { throw PRReviewError.submissionRejected }
         if holds { await withCheckedContinuation { write = $0 } }
         return PRReviewSubmissionReceipt(id: 42, headSHA: headSHA, event: event)
+    }
+}
+
+private actor AgentActionWorktreeService: ReviewWorktreeServicing {
+    var requests: [ReviewWorktreeRequest] = []
+    var releases: [UUID] = []
+    private var paths = ["file.swift"]
+    private var invalid = false
+    private var preparationFails = false
+    private var retained = false
+    private var holds = false
+    private var preparing: CheckedContinuation<Void, Never>?
+    private var holdingRelease = false
+    private var releasing: CheckedContinuation<Void, Never>?
+    func setPaths(_ paths: [String]) { self.paths = paths }
+    func failValidation(_ value: Bool) { invalid = value }
+    func failPreparation() { preparationFails = true }
+    func retainWorktree() { retained = true }
+    func holdPreparation() { holds = true }
+    func waitForPreparation() async { while preparing == nil { await Task.yield() } }
+    func finishPreparation() { preparing?.resume(); preparing = nil; holds = false }
+    func holdRelease() { holdingRelease = true }
+    func waitForRelease() async { while releasing == nil { await Task.yield() } }
+    func finishRelease() { releasing?.resume(); releasing = nil; holdingRelease = false }
+    func prepare(_ request: ReviewWorktreeRequest) async throws -> ReviewWorktreeLease {
+        requests.append(request)
+        if preparationFails { throw ReviewWorktreeError.failed("Configure a local checkout first") }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-review-\(UUID())")
+        let worktree = root.appendingPathComponent("tree")
+        let context = root.appendingPathComponent("context")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: context, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let lease = ReviewWorktreeLease(id: UUID(), key: request.key, accountLogin: request.accountLogin,
+            headSHA: request.headSHA, baseSHA: request.baseSHA, mergeBaseSHA: request.baseSHA,
+            worktreePath: worktree.path, contextDirectory: context.path, manifestPath: context.appendingPathComponent("manifest.json").path,
+            changedPaths: paths)
+        if holds { await withCheckedContinuation { preparing = $0 } }
+        return lease
+    }
+    func validate(_ lease: ReviewWorktreeLease) async throws {
+        if invalid { throw ReviewWorktreeError.failed("The review worktree changed") }
+    }
+    func release(_ lease: ReviewWorktreeLease) async -> String? {
+        releases.append(lease.id)
+        if holdingRelease { await withCheckedContinuation { releasing = $0 } }
+        try? FileManager.default.removeItem(at: URL(fileURLWithPath: lease.contextDirectory).deletingLastPathComponent())
+        return retained ? "Review worktree retained because local changes were detected" : nil
     }
 }

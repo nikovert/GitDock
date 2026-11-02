@@ -82,15 +82,37 @@ review** compares that commit to the head; inline drafting is disabled in compar
 
 ## Agent reviews and fixes
 
-Click **Agent review** on an open PR card or in the review header. The configured
-Codex, Claude, or custom review adapter receives bounded code and discussion context
-in read-only mode. Findings become local drafts in **Threads** and beneath exact
+Configure a local repository checkout and worktree root in **Workspace**, and choose
+the bundled Codex or Claude provider in chat settings. Click **Agent review** on an
+open PR card or in the review header. The app fetches and verifies the captured PR
+head and base, then opens a fresh detached review worktree. The reviewer receives
+the complete native Git changed-file inventory and patches from merge-base to head,
+full current files, and access to surrounding repository code and tests. It can
+inspect files; the review prompt prohibits edits, dependency installs, test/repository
+execution, commits, and publishing. Ordinary chat still uses bounded excerpts.
+
+The PR description, published discussion, and local drafts are supplied separately
+in a private context directory. The review never silently falls back to excerpts.
+Missing setup, inconsistent commits, or preparation limits produce an actionable
+error. Custom adapters continue to support chat; worktree reviews require the
+bundled providers. **Test connection** checks chat, not worktree setup.
+
+Findings become local drafts in **Threads** and beneath exact
 available diff lines. Findings without a valid current anchor remain general drafts
 with their original location explained; that explanation is preserved when posted.
 No GitHub review is posted by this action. Review, edit, remove, or publish each
 finding, or use **Publish all drafts…**. Repeated unchanged findings are deduplicated.
 Cancellation or changing the account/PR/revision discards late results. A review
-receipt shows the summary, provider, and whether context was incomplete.
+receipt shows the provider, pinned revisions, summary, and **files reported
+reviewed**, with explicit reasons for skipped files and reported limitations. This
+coverage is the agent's report, not proof it inspected every line. Tests are not
+requested or run by the app. Zero findings in a partial review is labelled partial;
+historical excerpt reviews have no full-file coverage. GitHub API patch notices
+remain visible separately and do not truncate the native Git inventory.
+
+Clean review worktrees and context files are removed after completion or cancellation.
+Changed or replaced worktrees are retained with their path and a warning so local
+edits are not deleted. Existing worktrees and fix sessions are not reused or removed.
 
 **Have an agent make all fixes…** opens a sheet with editable default instructions
 and a Codex/Claude picker. Configure the repository checkout, worktree root, and
