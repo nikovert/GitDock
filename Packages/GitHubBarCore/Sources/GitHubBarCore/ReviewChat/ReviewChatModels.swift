@@ -182,9 +182,20 @@ public protocol ReviewChatServicing: Sendable {
 /// Provider output and arbitrary adapter message strings are never displayed.
 public enum ReviewChatAdapterFailure: String, Codable, Equatable, Sendable {
     case providerTimedOut, providerNotAuthenticated, providerFailed, invalidReviewResponse, adapterFailed
+    case invalidRequest, invalidExecutable, invalidTimeout, invalidProviderResponse, providerOutputLimit
+    case providerDiagnosticsLimit, requestLimitExceeded, responseLimitExceeded, cancelled
 
     public var recoveryMessage: String {
         switch self {
+        case .invalidRequest: return "The app's review request did not match the adapter protocol. Update GitHubBar and report the PR URL if this persists."
+        case .invalidExecutable: return "The configured provider executable is missing or cannot be run. Choose an installed Codex or Claude CLI in agent settings."
+        case .invalidTimeout: return "The adapter timeout setting is invalid. Choose a value above zero and at most 110 seconds."
+        case .invalidProviderResponse: return "The provider returned an empty or invalid-text response. Check its CLI output mode and retry."
+        case .providerOutputLimit: return "The provider's answer exceeded the response limit. Request a smaller review or shorter answer."
+        case .providerDiagnosticsLimit: return "The provider diagnostics exceeded the limit. Check the CLI's local logging and settings warnings."
+        case .requestLimitExceeded: return "The review request exceeded the adapter's input limit. Reduce the PR context and retry."
+        case .responseLimitExceeded: return "The encoded review response exceeded the adapter's limit. Request fewer findings or a shorter answer."
+        case .cancelled: return "The local agent request was cancelled. Existing drafts are unchanged."
         case .providerTimedOut: return "The provider timed out while preparing its response. Try a smaller PR or check the provider connection."
         case .providerNotAuthenticated: return "The provider CLI is not signed in. Run codex login or claude auth login in Terminal for the selected provider, then retry."
         case .providerFailed: return "The provider CLI failed. Check its local sign-in, service availability, and CLI version, then retry."

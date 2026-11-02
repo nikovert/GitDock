@@ -174,8 +174,10 @@ No GitHub credential is placed in the request. Raw stderr and decoding errors ar
 never surfaced to the UI. Stderr is bounded and retained only in memory until the
 exchange finishes. On a nonzero exit, adapters may emit a line such as
 `GITHUBBAR_ADAPTER_ERROR_V1:{"code":"providerTimedOut"}`. The client accepts only
-known codes (`providerTimedOut`, `providerNotAuthenticated`, `providerFailed`,
-`invalidReviewResponse`, `adapterFailed`) and displays a fixed recovery message.
+known failure codes and displays a fixed recovery message. Codes distinguish
+provider sign-in, timeouts, failed or malformed output, request/response/diagnostic
+limits, invalid protocol/configuration, and cancellation. The complete allowlist
+is `ReviewChatAdapterFailure` in `ReviewChatModels.swift`.
 Unknown codes, additional message fields, or malformed records fall back to the
 exit-status error. Arbitrary stderr is never displayed or saved.
 
@@ -348,3 +350,17 @@ temporary directories. No provider authentication is needed:
 ```bash
 python3 -m unittest discover -s scripts/tests -p test_review_chat_adapter.py
 ```
+
+## macOS Keychain and structured Claude reviews
+
+The provider environment includes `USER` resolved from the local OS account, even
+when the app has stripped inherited environment variables. Claude uses it to find
+its saved macOS Keychain login; retaining `HOME` alone is insufficient. Provider
+tokens and API keys are still omitted, and this does not change Keychain access
+permissions or credentials.
+
+For the review task, the Claude preset uses `--output-format json --json-schema`
+with a findings schema. The adapter accepts only a successful result envelope
+containing `structured_output`, then applies the existing body, count, and coordinate
+validation. Failed or missing structured output is an error, never an empty review.
+Ordinary chat continues to use text mode, and the app-facing JSON protocol is unchanged.

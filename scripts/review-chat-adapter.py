@@ -5,6 +5,7 @@ import argparse
 import json
 import math
 import os
+import pwd
 from pathlib import Path
 import selectors
 import signal
@@ -33,7 +34,7 @@ class AdapterError(Exception):
 def read_request():
     raw = sys.stdin.buffer.read(REQUEST_LIMIT + 1)
     if len(raw) > REQUEST_LIMIT:
-        raise AdapterError("Request exceeded the byte limit. Reduce context and retry.")
+        raise AdapterError("Request exceeded the byte limit. Reduce context and retry.", "requestLimitExceeded")
     try:
         request = json.loads(raw)
         for field in ("accountLogin", "prURL", "headSHA", "question", "context", "policy"):
@@ -51,27 +52,52 @@ def read_request():
                 raise ValueError()
         return request
     except (ValueError, KeyError, TypeError, AttributeError, RecursionError):
-        raise AdapterError("Invalid Review Chat v1 request. Check the caller's JSON.") from None
+        raise AdapterError("Invalid Review Chat v1 request. Check the caller's JSON.", "invalidRequest") from None
 
 
-def provider_command(provider, executable):
+def review_schema():
+    """Native provider validation supplements the adapter's byte/anchor checks."""
+    citation = {"type": "object", "additionalProperties": False,
+                "properties": {"path": {"type": "string"}, "line": {"type": "integer", "minimum": 1},
+                               "side": {"type": "string", "enum": ["LEFT", "RIGHT"]}},
+                "required": ["path", "line", "side"]}
+    finding = {"type": "object", "additionalProperties": False,
+               "properties": {"body": {"type": "string", "minLength": 1},
+                              "path": {"type": ["string", "null"]},
+                              "line": {"type": ["integer", "null"], "minimum": 1},
+                              "side": {"type": ["string", "null"], "enum": ["LEFT", "RIGHT", None]}},
+               "required": ["body", "path", "line", "side"]}
+    return {"type": "object", "additionalProperties": False,
+            "properties": {"answer": {"type": "string", "minLength": 1},
+                           "citations": {"type": "array", "items": citation},
+                           "findings": {"type": "array", "items": finding, "maxItems": FINDING_LIMIT}},
+            "required": ["answer", "citations", "findings"]}
+
+
+def provider_command(provider, executable, structured_review=False):
     if provider == "codex":
         return [
             executable, "--no-daemon", "--ask-for-approval", "never", "exec",
             "--sandbox", "read-only", "--ephemeral", "--ignore-user-config",
             "--ignore-rules", "--skip-git-repo-check", "--color", "never", "-",
         ]
-    return [
-        executable, "--print", "--output-format", "text", "--permission-mode", "plan",
+    command = [
+        executable, "--print", "--output-format", "json" if structured_review else "text", "--permission-mode", "plan",
         "--permission-prompts", "none", "--tools", "", "--disallowedTools", "mcp__*",
         "--safe-mode", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
         "--no-session-persistence", "--disable-slash-commands", "--no-chrome",
     ]
+    if structured_review:
+        command += ["--json-schema", json.dumps(review_schema(), separators=(",", ":"))]
+    return command
 
 
 def provider_environment(executable):
     environment = {key: value for key, value in os.environ.items()
                    if key in ("HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE")}
+    # Claude's macOS Keychain lookup uses USER even when HOME is present. Resolve
+    # the OS account locally; never inherit credentials or arbitrary environment.
+    environment["USER"] = pwd.getpwuid(os.getuid()).pw_name
     # Node-based CLI entry points may use /usr/bin/env node from their install directory.
     environment["PATH"] = str(Path(executable).parent) + ":/usr/bin:/bin:/usr/sbin:/sbin"
     return environment
@@ -114,12 +140,12 @@ def collect_answer(child, timeout):
                     selector.unregister(key.fileobj)
                 elif key.data == "answer":
                     if len(output) + len(chunk) > ANSWER_LIMIT:
-                        raise AdapterError("Provider answer exceeded the byte limit. Request a shorter answer.")
+                        raise AdapterError("Provider answer exceeded the byte limit. Request a shorter answer.", "providerOutputLimit")
                     output.extend(chunk)
                 else:
                     error_bytes += len(chunk)
                     if error_bytes > ERROR_LIMIT:
-                        raise AdapterError("Provider diagnostics exceeded the byte limit. Check local CLI settings.")
+                        raise AdapterError("Provider diagnostics exceeded the byte limit. Check local CLI settings.", "providerDiagnosticsLimit")
         if child.wait() != 0:
             if output.decode("utf-8", errors="replace").strip().lower().startswith("not logged in"):
                 raise AdapterError("Provider is not signed in. Sign in using its CLI, then retry.", "providerNotAuthenticated")
@@ -127,9 +153,9 @@ def collect_answer(child, timeout):
         try:
             answer = output.decode("utf-8").strip()
         except UnicodeDecodeError:
-            raise AdapterError("Provider returned invalid UTF-8. Check its output mode.") from None
+            raise AdapterError("Provider returned invalid UTF-8. Check its output mode.", "invalidProviderResponse") from None
         if not answer:
-            raise AdapterError("Provider returned an empty answer. Check local login and retry.")
+            raise AdapterError("Provider returned an empty answer. Check local login and retry.", "invalidProviderResponse")
         return answer
 
 
@@ -198,7 +224,7 @@ def parse_review(text):
 
 
 def interrupted(_signal, _frame):
-    raise AdapterError("Chat cancelled.")
+    raise AdapterError("Chat cancelled.", "cancelled")
 
 
 def main():
@@ -208,10 +234,10 @@ def main():
     parser.add_argument("--timeout", type=float, default=100, help="Provider timeout in seconds (0 < value <= 110)")
     args = parser.parse_args()
     if not math.isfinite(args.timeout) or not 0 < args.timeout <= 110:
-        raise AdapterError("Timeout must be positive and at most 110 seconds.")
+        raise AdapterError("Timeout must be positive and at most 110 seconds.", "invalidTimeout")
     executable = Path(args.cli)
     if not executable.is_absolute() or not executable.is_file() or not os.access(executable, os.X_OK):
-        raise AdapterError("Choose an existing provider executable using its absolute path.")
+        raise AdapterError("Choose an existing provider executable using its absolute path.", "invalidExecutable")
     request = read_request()
     review = request.get("task") == "review"
     task_instruction = (
@@ -238,8 +264,18 @@ def main():
         "Use an empty citations array when uncertain. Never invent coordinates.\nREQUEST_JSON:\n"
         + json.dumps(request, ensure_ascii=False)
     )
-    answer = run_provider(provider_command(args.provider, str(executable)), prompt, args.timeout)
+    answer = run_provider(provider_command(args.provider, str(executable), structured_review=review), prompt, args.timeout)
     if review:
+        if args.provider == "claude":
+            try:
+                envelope = json.loads(answer)
+                if (not isinstance(envelope, dict) or envelope.get("type") != "result"
+                        or envelope.get("is_error") is not False
+                        or not isinstance(envelope.get("structured_output"), dict)):
+                    raise ValueError()
+                answer = json.dumps(envelope["structured_output"], ensure_ascii=False)
+            except (ValueError, TypeError, RecursionError):
+                raise AdapterError("Claude did not return a successful structured review result.", "invalidReviewResponse") from None
         answer, citations, findings = parse_review(answer)
     else:
         answer, citations = parse_answer(answer)
@@ -249,7 +285,7 @@ def main():
         value["findings"] = findings
     response = json.dumps(value, ensure_ascii=False).encode("utf-8")
     if len(response) > REQUEST_LIMIT:
-        raise AdapterError("Encoded response exceeded the byte limit. Request a shorter answer.")
+        raise AdapterError("Encoded response exceeded the byte limit. Request a shorter answer.", "responseLimitExceeded")
     sys.stdout.buffer.write(response)
 
 

@@ -2,6 +2,7 @@
 
 import json
 import os
+import pwd
 from pathlib import Path
 import signal
 import subprocess
@@ -80,6 +81,22 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
             self.assertNotIn(key, observed["environment"])
         self.assertEqual(observed["environment"]["HOME"], str(self.directory))
 
+    def test_provider_receives_os_username_for_keychain_without_inheriting_credentials(self):
+        self.fake("import json,os;print(json.dumps(dict(os.environ)))")
+        self.environment.pop("USER", None)
+        result = self.run_adapter("claude")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        environment = json.loads(json.loads(result.stdout)["answer"])
+        self.assertEqual(environment.get("USER"), pwd.getpwuid(os.getuid()).pw_name)
+        for key in ["GH_TOKEN", "OPENAI_API_KEY", "GITHUBBAR_WORKSPACE_CLI"]:
+            self.assertNotIn(key, environment)
+
+    def test_invalid_request_reports_specific_safe_code(self):
+        self.fake("raise SystemExit('must not start')")
+        result = self.run_adapter(raw=b'{}')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'GITHUBBAR_ADAPTER_ERROR_V1:{"code":"invalidRequest"}', result.stderr)
+
     def test_claude_disables_tools_and_mcp_and_uses_noninteractive_text(self):
         self.fake("import json, sys; print(json.dumps(sys.argv[1:]))")
         result = self.run_adapter("claude")
@@ -139,11 +156,35 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
     def review(self, provider="codex"):
         return self.run_adapter(provider, raw=json.dumps({**REQUEST, "task": "review"}).encode())
 
+    def test_claude_review_uses_native_schema_and_unwraps_validated_output(self):
+        marker = self.directory / "schema-argv.json"
+        payload = {"answer": "Reviewed", "citations": [], "findings": [{"body": "Fix fallback", "path": None, "line": None, "side": None}]}
+        envelope = {"type": "result", "is_error": False, "structured_output": payload}
+        self.fake("import json,sys\nopen(" + repr(str(marker)) + ",'w').write(json.dumps(sys.argv[1:]))\nprint(" + repr(json.dumps(envelope)) + ")")
+        result = self.review("claude")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        response = json.loads(result.stdout)
+        self.assertEqual(response["findings"], [{"body": "Fix fallback"}])
+        argv = json.loads(marker.read_text())
+        self.assertEqual(argv[argv.index("--output-format") + 1], "json")
+        schema = json.loads(argv[argv.index("--json-schema") + 1])
+        self.assertIn("findings", schema["required"])
+        self.assertEqual(argv[argv.index("--tools") + 1], "")
+
+    def test_claude_review_rejects_failed_or_missing_structured_output(self):
+        for envelope in [{"type": "result", "is_error": True, "structured_output": {"answer": "No issues", "citations": [], "findings": []}},
+                         {"type": "result", "is_error": False, "result": "No issues"}]:
+            self.fake("print(" + repr(json.dumps(envelope)) + ")")
+            result = self.review("claude")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, b"")
+            self.assertIn(b'invalidReviewResponse', result.stderr)
+
     def test_review_returns_structured_findings_for_both_providers(self):
         findings = [{"body": "Check empty input", "path": "src/file.swift", "line": 12, "side": "LEFT"},
                     {"body": "Document migration"}, {"body": "Need more context", "path": "missing.swift"}]
         payload = {"answer": "Reviewed supplied changes", "citations": [], "findings": findings}
-        self.fake("print(" + repr(json.dumps(payload)) + ")")
+        self.fake("import json,sys\npayload=" + repr(payload) + "\nprint(json.dumps({'type':'result','is_error':False,'structured_output':payload} if '--json-schema' in sys.argv else payload))")
         for provider in ("codex", "claude"):
             with self.subTest(provider=provider):
                 result = self.review(provider)
@@ -180,7 +221,7 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
     def test_review_prompt_keeps_read_only_flags_and_context_as_data(self):
         marker = self.directory / "observed.json"
         self.fake("import json,sys\nopen(" + repr(str(marker)) + ", 'w').write(json.dumps({'argv':sys.argv[1:], 'prompt':sys.stdin.read()}))\n"
-                  "print('{\"answer\":\"Reviewed\",\"citations\":[],\"findings\":[]}')")
+                  "payload={'answer':'Reviewed','citations':[],'findings':[]}\nprint(json.dumps({'type':'result','is_error':False,'structured_output':payload} if '--json-schema' in sys.argv else payload))")
         for provider in ("codex", "claude"):
             result = self.review(provider)
             self.assertEqual(result.returncode, 0, result.stderr)

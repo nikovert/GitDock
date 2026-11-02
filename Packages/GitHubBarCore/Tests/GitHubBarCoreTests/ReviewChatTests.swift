@@ -102,6 +102,19 @@ final class ReviewChatTests: XCTestCase, @unchecked Sendable {
         }
     }
 
+    func testProtocolAndProviderLimitFailuresHaveSpecificSafeRecovery() async throws {
+        for (code, expected) in [("invalidRequest", "request did not match"),
+                                 ("invalidExecutable", "provider executable"),
+                                 ("providerDiagnosticsLimit", "diagnostics exceeded")] {
+            let fixture = try fixture("print STDERR 'GITHUBBAR_ADAPTER_ERROR_V1:{\"code\":\"\(code)\"}'; exit 1;")
+            defer { fixture.remove() }
+            do {
+                _ = try await ReviewChatClient().send(request, configuration: fixture.configuration)
+                XCTFail("Expected \(code)")
+            } catch { XCTAssertTrue(error.localizedDescription.contains(expected), error.localizedDescription) }
+        }
+    }
+
     func testUnknownAdapterFailureCannotInjectAnErrorMessage() async throws {
         let fixture = try fixture(#"""
         print STDERR 'GITHUBBAR_ADAPTER_ERROR_V1:{"code":"SECRET","message":"PRIVATE"}'; exit 1;
