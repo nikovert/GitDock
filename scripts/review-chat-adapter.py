@@ -18,6 +18,8 @@ import uuid
 REQUEST_LIMIT = 1_048_576
 ANSWER_LIMIT = 524_288
 ERROR_LIMIT = 65_536
+EVENT_LINE_LIMIT = 2 * 1_048_576
+EVENT_STREAM_LIMIT = 8 * 1_048_576
 FINDING_LIMIT = 100
 FINDING_BODY_LIMIT = 16_384
 FINDING_TOTAL_BODY_LIMIT = 262_144
@@ -79,7 +81,7 @@ def provider_command(provider, executable, structured_review=False):
         return [
             executable, "--no-daemon", "--ask-for-approval", "never", "exec",
             "--sandbox", "read-only", "--ephemeral", "--ignore-user-config",
-            "--ignore-rules", "--skip-git-repo-check", "--color", "never", "-",
+            "--ignore-rules", "--skip-git-repo-check", "--color", "never", "--json", "-",
         ]
     command = [
         executable, "--print", "--output-format", "json" if structured_review else "text", "--permission-mode", "plan",
@@ -103,7 +105,7 @@ def provider_environment(executable):
     return environment
 
 
-def run_provider(command, prompt, timeout):
+def run_provider(command, prompt, timeout, codex_events=False):
     # No repository discovery; all PR information comes from the request. HOME remains
     # available for local provider login. This is not an OS-level isolation boundary.
     with tempfile.TemporaryDirectory(prefix="githubbar-chat-") as directory:
@@ -117,18 +119,79 @@ def run_provider(command, prompt, timeout):
                 start_new_session=False,
             ) as child:
                 try:
-                    return collect_answer(child, timeout)
+                    return collect_answer(child, timeout, codex_events=codex_events)
                 finally:
                     if child.poll() is None:
                         child.kill()
                     child.wait()
 
 
-def collect_answer(child, timeout):
+class CodexEventStream:
+    """Bounded JSONL decoding; progress is discarded, never used as an answer."""
+
+    def __init__(self):
+        self.buffer = bytearray()
+        self.answer = None
+        self.completed = False
+        self.failed = False
+        self.invalid = False
+
+    def feed(self, chunk):
+        self.buffer.extend(chunk)
+        while b"\n" in self.buffer:
+            line, _, rest = self.buffer.partition(b"\n")
+            self.buffer = rest
+            self.consume(line)
+        if len(self.buffer) > EVENT_LINE_LIMIT:
+            raise AdapterError("Provider event exceeded the byte limit.", "providerOutputLimit")
+
+    def consume(self, line):
+        if len(line) > EVENT_LINE_LIMIT:
+            raise AdapterError("Provider event exceeded the byte limit.", "providerOutputLimit")
+        if not line.strip():
+            return
+        try:
+            event = json.loads(line.decode("utf-8"))
+            if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+                raise ValueError()
+            if event["type"] == "item.completed":
+                item = event.get("item")
+                if not isinstance(item, dict):
+                    raise ValueError()
+                if item.get("type") == "agent_message":
+                    text = item.get("text")
+                    if self.completed or not isinstance(text, str):
+                        raise ValueError()
+                    if len(text.encode("utf-8")) > ANSWER_LIMIT:
+                        raise AdapterError("Provider answer exceeded the byte limit.", "providerOutputLimit")
+                    self.answer = text
+            elif event["type"] == "turn.completed":
+                if self.completed or self.answer is None:
+                    raise ValueError()
+                self.completed = True
+            elif event["type"] in ("turn.failed", "error"):
+                self.failed = True
+        except (ValueError, TypeError, UnicodeError, RecursionError):
+            self.invalid = True
+
+    def finish(self):
+        if self.buffer:
+            self.consume(self.buffer)
+            self.buffer.clear()
+        if self.failed:
+            raise AdapterError("Provider turn failed. Check local CLI settings.", "providerFailed")
+        if self.invalid or not self.completed or self.answer is None:
+            raise AdapterError("Provider returned an incomplete or invalid event stream.", "invalidProviderResponse")
+        return self.answer.strip()
+
+
+def collect_answer(child, timeout, codex_events=False):
     with selectors.DefaultSelector() as selector:
         selector.register(child.stdout, selectors.EVENT_READ, "answer")
         selector.register(child.stderr, selectors.EVENT_READ, "error")
         output = bytearray()
+        events = CodexEventStream() if codex_events else None
+        output_bytes = 0
         error_bytes = 0
         deadline = time.monotonic() + timeout
         while selector.get_map() or child.poll() is None:
@@ -139,9 +202,17 @@ def collect_answer(child, timeout):
                 if not chunk:
                     selector.unregister(key.fileobj)
                 elif key.data == "answer":
-                    if len(output) + len(chunk) > ANSWER_LIMIT:
-                        raise AdapterError("Provider answer exceeded the byte limit. Request a shorter answer.", "providerOutputLimit")
-                    output.extend(chunk)
+                    output_bytes += len(chunk)
+                    if events is not None:
+                        if output_bytes > EVENT_STREAM_LIMIT:
+                            raise AdapterError("Provider event stream exceeded the byte limit.", "providerOutputLimit")
+                        # Retain only a small failure prefix for the existing sign-in classifier.
+                        output.extend(chunk[:max(0, 1024 - len(output))])
+                        events.feed(chunk)
+                    else:
+                        if output_bytes > ANSWER_LIMIT:
+                            raise AdapterError("Provider answer exceeded the byte limit. Request a shorter answer.", "providerOutputLimit")
+                        output.extend(chunk)
                 else:
                     error_bytes += len(chunk)
                     if error_bytes > ERROR_LIMIT:
@@ -151,7 +222,7 @@ def collect_answer(child, timeout):
                 raise AdapterError("Provider is not signed in. Sign in using its CLI, then retry.", "providerNotAuthenticated")
             raise AdapterError("Provider failed. Check local login and CLI version, then retry.", "providerFailed")
         try:
-            answer = output.decode("utf-8").strip()
+            answer = events.finish() if events is not None else output.decode("utf-8").strip()
         except UnicodeDecodeError:
             raise AdapterError("Provider returned invalid UTF-8. Check its output mode.", "invalidProviderResponse") from None
         if not answer:
@@ -264,7 +335,7 @@ def main():
         "Use an empty citations array when uncertain. Never invent coordinates.\nREQUEST_JSON:\n"
         + json.dumps(request, ensure_ascii=False)
     )
-    answer = run_provider(provider_command(args.provider, str(executable), structured_review=review), prompt, args.timeout)
+    answer = run_provider(provider_command(args.provider, str(executable), structured_review=review), prompt, args.timeout, codex_events=args.provider == "codex")
     if review:
         if args.provider == "claude":
             try:

@@ -39,7 +39,16 @@ class ReviewChatAdapterTests(unittest.TestCase):
         }
 
     def fake(self, body):
-        self.cli.write_text(f"#!{sys.executable}\n" + body + "\n")
+        prelude = """
+import json,sys
+def emit_answer(text):
+    if '--json' in sys.argv:
+        print(json.dumps({'type':'item.completed','item':{'type':'agent_message','text':text}}))
+        print(json.dumps({'type':'turn.completed'}))
+    else:
+        print(text)
+"""
+        self.cli.write_text(f"#!{sys.executable}\n" + prelude + body + "\n")
         self.cli.chmod(0o700)
 
     def command(self, provider="codex", *extra):
@@ -54,10 +63,68 @@ class ReviewChatAdapterTests(unittest.TestCase):
             cwd=self.directory, env=self.environment, timeout=5,
         )
 
+    def test_large_codex_prompt_uses_events_instead_of_echoing_to_stderr(self):
+        self.fake("""
+import json,sys
+prompt = sys.stdin.read()
+if '--json' not in sys.argv:
+    sys.stderr.write(prompt);sys.stderr.flush()
+else:
+    print(json.dumps({'type':'item.completed','item':{'type':'reasoning','text':'progress'}}))
+    print(json.dumps({'type':'item.completed','item':{'type':'agent_message','text':'{"answer":"Reviewed","citations":[],"findings":[]}'}}))
+    print(json.dumps({'type':'turn.completed'}))
+""")
+        result = self.run_adapter(raw=json.dumps({**REQUEST,"task":"review","context":"x"*96000}).encode())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["findings"], [])
+
+    def test_codex_events_require_successful_completion_and_ignore_progress(self):
+        answer = json.dumps({"answer":"Reviewed", "citations":[], "findings":[]})
+        message = {"type":"item.completed","item":{"type":"agent_message","text":answer}}
+        for events, success in [([{"type":"item.completed","item":{"type":"reasoning","text":"SECRET"}},message,{"type":"turn.completed"}],True),
+                                ([message],False),([message,{"type":"turn.failed"}],False),
+                                ([message,{"type":"error","message":"SECRET"},{"type":"turn.completed"}],False),
+                                ([{"type":"turn.completed"}],False),([{"type":"turn.completed"},message],False)]:
+            self.fake("import json\n" + "\n".join("print("+repr(json.dumps(event))+")" for event in events))
+            result = self.review()
+            self.assertEqual(result.returncode==0, success, result.stderr)
+            self.assertNotIn(b'SECRET', result.stdout+result.stderr)
+
+    def test_codex_large_progress_is_discarded_and_final_answer_remains_bounded(self):
+        self.fake("""
+import json
+for _ in range(100):
+    print(json.dumps({'type':'item.completed','item':{'type':'reasoning','text':'SECRET_PROGRESS'*100}}))
+emit_answer('{"answer":"Reviewed","citations":[],"findings":[]}')
+""")
+        result = self.review()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn(b'SECRET_PROGRESS', result.stdout+result.stderr)
+        self.assertEqual(json.loads(result.stdout)['answer'], 'Reviewed')
+        self.fake("emit_answer('x' * 524289)")
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'providerOutputLimit', result.stderr)
+
+    def test_codex_event_stream_flood_still_stops_at_a_finite_limit(self):
+        self.fake("import json\nwhile True: print(json.dumps({'type':'item.completed','item':{'type':'reasoning','text':'x'*8192}}))")
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'providerOutputLimit', result.stderr)
+        self.assertEqual(result.stdout, b'')
+
+    def test_codex_split_utf8_and_final_event_without_newline(self):
+        answer = json.dumps({'answer':'é'*10,'citations':[],'findings':[]},ensure_ascii=False)
+        stream = json.dumps({'type':'item.completed','item':{'type':'agent_message','text':answer}},ensure_ascii=False)+'\n'+json.dumps({'type':'turn.completed'})
+        self.fake("import os\nfor byte in " + repr(stream.encode()) + ": os.write(1,bytes([byte]))")
+        result = self.review()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['answer'], 'é'*10)
+
     def test_codex_wraps_answer_and_passes_context_with_read_only_flags(self):
         self.fake("""
 import json, os, sys
-print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
+emit_answer(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
                   'cwd': os.getcwd(), 'environment': dict(os.environ)}))
 """)
         result = self.run_adapter()
@@ -73,6 +140,7 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
         for option in ["--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check"]:
             self.assertIn(option, argv)
         self.assertEqual(argv[-1], "-")
+        self.assertIn("--json", argv)
         self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", argv)
         sent = json.loads(observed["prompt"].split("\nREQUEST_JSON:\n", 1)[1])
         self.assertEqual(sent, REQUEST)
@@ -118,7 +186,7 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
                           {"path": "Sources/Batch.swift", "line": 14}],
             "prURL": "https://github.com/wrong/repo/pull/9", "headSHA": "wrong",
         }
-        self.fake("print(" + repr(json.dumps(provider_response)) + ")")
+        self.fake("emit_answer(" + repr(json.dumps(provider_response)) + ")")
         result = self.run_adapter()
         self.assertEqual(result.returncode, 0, result.stderr)
         response = json.loads(result.stdout)
@@ -138,7 +206,7 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
         ]:
             with self.subTest(citation=citation):
                 raw = json.dumps({"answer": "Advice", "citations": [citation]})
-                self.fake("print(" + repr(raw) + ")")
+                self.fake("emit_answer(" + repr(raw) + ")")
                 result = self.run_adapter()
                 self.assertEqual(result.returncode, 0, result.stderr)
                 response = json.loads(result.stdout)
@@ -184,7 +252,7 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
         findings = [{"body": "Check empty input", "path": "src/file.swift", "line": 12, "side": "LEFT"},
                     {"body": "Document migration"}, {"body": "Need more context", "path": "missing.swift"}]
         payload = {"answer": "Reviewed supplied changes", "citations": [], "findings": findings}
-        self.fake("import json,sys\npayload=" + repr(payload) + "\nprint(json.dumps({'type':'result','is_error':False,'structured_output':payload} if '--json-schema' in sys.argv else payload))")
+        self.fake("import json,sys\npayload=" + repr(payload) + "\nemit_answer(json.dumps({'type':'result','is_error':False,'structured_output':payload} if '--json-schema' in sys.argv else payload))")
         for provider in ("codex", "claude"):
             with self.subTest(provider=provider):
                 result = self.review(provider)
@@ -194,7 +262,7 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
                 self.assertEqual(response["prURL"], REQUEST["prURL"])
 
     def test_review_accepts_explicit_empty_findings(self):
-        self.fake('print(\'{"answer":"Reviewed","citations":[],"findings":[]}\')')
+        self.fake('emit_answer(\'{"answer":"Reviewed","citations":[],"findings":[]}\')')
         result = self.review()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["findings"], [])
@@ -212,7 +280,7 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
                     json.dumps({"answer": "Reviewed", "findings": []})]
         for output in outputs:
             with self.subTest(output=output[:100]):
-                self.fake("print(" + repr(output) + ")")
+                self.fake("emit_answer(" + repr(output) + ")")
                 result = self.review()
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b"")
@@ -221,7 +289,7 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
     def test_review_prompt_keeps_read_only_flags_and_context_as_data(self):
         marker = self.directory / "observed.json"
         self.fake("import json,sys\nopen(" + repr(str(marker)) + ", 'w').write(json.dumps({'argv':sys.argv[1:], 'prompt':sys.stdin.read()}))\n"
-                  "payload={'answer':'Reviewed','citations':[],'findings':[]}\nprint(json.dumps({'type':'result','is_error':False,'structured_output':payload} if '--json-schema' in sys.argv else payload))")
+                  "payload={'answer':'Reviewed','citations':[],'findings':[]}\nemit_answer(json.dumps({'type':'result','is_error':False,'structured_output':payload} if '--json-schema' in sys.argv else payload))")
         for provider in ("codex", "claude"):
             result = self.review(provider)
             self.assertEqual(result.returncode, 0, result.stderr)

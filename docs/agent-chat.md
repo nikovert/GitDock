@@ -216,12 +216,16 @@ on stdin:
 ```bash
 /opt/homebrew/bin/codex --no-daemon --ask-for-approval never exec \
   --sandbox read-only --ephemeral --ignore-user-config --ignore-rules \
-  --skip-git-repo-check --color never -
+  --skip-git-repo-check --color never --json -
 ```
 
-Codex's noninteractive mode returns the final answer on stdout and progress on
-stderr; the adapter does not use its JSONL event stream. Saved CLI authentication
-remains available with user configuration disabled. See the official
+Codex uses its JSONL event stream. The adapter discards progress and reasoning,
+keeps the last completed `agent_message`, and accepts it only after a successful
+`turn.completed` and zero process exit status. A failed/incomplete turn, top-level
+error event, malformed stream, or message after completion is rejected. This avoids human-readable mode's
+full prompt echo on stderr, which previously exhausted the diagnostic limit for
+larger review contexts before an answer was produced. Raw events are never shown
+in the app. Saved CLI authentication remains available with user configuration disabled. See the official
 [noninteractive documentation](https://learn.chatgpt.com/docs/non-interactive-mode).
 The local help documents `read-only` as the model-command sandbox mode.
 
@@ -242,10 +246,12 @@ including policy hooks, can still apply in safe mode. See the official
 
 Both modes run in a fresh temporary directory, not the repository; the supplied
 context is their source of PR information. Both use an environment allowlist like
-the core client, adding only the chosen CLI's directory to PATH for installations
+the core client, adding the OS-derived USER and the chosen CLI's directory to PATH for installations
 whose launcher needs a sibling interpreter. The adapter has a 100-second default
 deadline (`--timeout` can set a value above zero and at most 110), a 512 KiB provider
-answer limit, and a 64 KiB provider stderr limit. It keeps the provider in its own
+answer limit, and a 64 KiB provider stderr limit. Codex additionally has an 8 MiB
+total event-stream limit and a 2 MiB maximum event line; events are decoded
+incrementally and progress is discarded instead of accumulated. It keeps the provider in its own
 inherited process group so GitHubBar cancellation can stop both processes.
 
 **Advisory is not an absolute enforcement guarantee.** Codex's read-only sandbox
