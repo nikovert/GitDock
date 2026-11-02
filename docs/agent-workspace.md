@@ -42,6 +42,22 @@ worktree.
 remove one with uncommitted or ignored files. **Unpin** removes the local link only; it does not
 stop tmux or delete files.
 
+## Fix review comments in a managed worktree
+
+The review header's **Have an agent make all fixes…** button collects fresh published
+comments, current inline/general drafts, and the review summary. Choose Codex or
+Claude and edit the default assess/fix/test/commit instructions before starting.
+The configured checkout and `origin` must match the PR repository. GitHubBar verifies
+the current account and head/base, fetches the exact PR head, and creates a fresh
+branch/worktree; a changed head stops the launch.
+
+The coding agent runs interactively in tmux with your normal CLI permission policy.
+The prompt requests a local commit, never an automatic push or GitHub publication.
+**Session started** means the CLI was launched; inspect its output and commit in
+Terminal. Large prompts are transported in an owner-only temporary file outside
+the worktree so the instructions cannot accidentally enter the commit. All comment
+context is included or the action fails with an explanation.
+
 ## Let agents update the board
 
 Every validation ZIP and stable app includes the command-line client at

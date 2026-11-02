@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		000EE67415F9512A52CB7ECA /* WorktreeCleanupModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96C876E907E7920D4AE90659 /* WorktreeCleanupModelTests.swift */; };
+		012C53A865F94CD06753C02D /* AgentReviewActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9DA0A8197C81028CE26E70 /* AgentReviewActionTests.swift */; };
 		018C00B3B8C531A67157BE74 /* ReviewDiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09315F24ABF36A98201E1A87 /* ReviewDiffView.swift */; };
 		06133D3CC5673CDCF9DE6469 /* MultilineComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE671023ED80F3DAAC5E5207 /* MultilineComposerTests.swift */; };
 		0ACF9F8FF0F77B335E720C40 /* ReviewWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E28D68F364DCAF36CDC59A63 /* ReviewWorkspaceView.swift */; };
 		11876594E72EF43EE8585EE4 /* WorkspaceDashboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE7D9F09377DBE1AC7316B7F /* WorkspaceDashboardTests.swift */; };
+		14C6EAB3CD6325C117CFE647 /* ReviewPublicationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE61D33BA11C1B887222970 /* ReviewPublicationPlan.swift */; };
 		17D216F8F91FE77B7AE0AD34 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A914524DE738D5B82F7761E /* Main.swift */; };
 		2042492B344CC42231B0DCB4 /* CorePRSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3032CADDBD780743B46B5B3A /* CorePRSearchService.swift */; };
 		20DF0B41D014762ECA024BCB /* AppActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BBCCEA1002710C169F6641 /* AppActions.swift */; };
@@ -19,9 +21,11 @@
 		24D394E5E965795763EAAEF4 /* StatusIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CC8053760D622F2FF04D61B /* StatusIconRenderer.swift */; };
 		28A8B231972DDE1645DFDE47 /* WorkspaceErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB1DBB43398AAD41650BE70 /* WorkspaceErrorTests.swift */; };
 		2BDF14569D942AC219B66966 /* WorkspaceLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D588DD5AA32EC7EB6ACEE6E /* WorkspaceLayout.swift */; };
+		2FE3BFF302D68724700125B1 /* ReviewPublicationPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A75CBDA81DBDCF56B0E195 /* ReviewPublicationPlanTests.swift */; };
 		33242B6B2E4CEA400F51E788 /* agent-chat.md in Resources */ = {isa = PBXBuildFile; fileRef = AF9AB8B6324EF4007CB29B57 /* agent-chat.md */; };
 		33F3A109BE94C8CCF3972C29 /* PinnedRepositoriesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D454931E2AAFE022095FA7 /* PinnedRepositoriesSettingsView.swift */; };
 		382C674DE3CD8C6A3D7ACA6C /* WorkspaceReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B32B41B61F3D4022C4D61A /* WorkspaceReviewTests.swift */; };
+		3905C009051E234863A4B6AE /* ReviewAgentActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0469668AD1397C59C3238299 /* ReviewAgentActionsView.swift */; };
 		397DC830E654C661E152CFF2 /* WorktreeCleanupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6B9AB52ADB0D0029170CE3E /* WorktreeCleanupView.swift */; };
 		43A39E1D85DFA5D292E4D258 /* GitHubBarCore in Frameworks */ = {isa = PBXBuildFile; productRef = 10697BA3CB9F8BCD98262056 /* GitHubBarCore */; };
 		4DB56A24A95700DBE4BFB1F7 /* WorktreeCleanupRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93971B040CDECBD9BD4C0D2E /* WorktreeCleanupRenderingTests.swift */; };
@@ -65,10 +69,12 @@
 		C73E7D88CEBAA7B9C79EEFFE /* PRSearchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 599E1CA2EE38488262F59055 /* PRSearchModel.swift */; };
 		C8A714EDCE518FDD0D4882BD /* GitHubBarWorkspaceCLI in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 2AA14DE32C2192BBB303D436 /* GitHubBarWorkspaceCLI */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CB8CD3C24FDA6967724D7137 /* ReviewWorkspaceStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEB074387FC440F72D716560 /* ReviewWorkspaceStateTests.swift */; };
+		CD51ACB9AF50A1CD9AA8403F /* ReviewAgentContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34D4FC78ED4ACD4E7EF3028B /* ReviewAgentContext.swift */; };
 		D0F5EB9ED948C3A47491C2D1 /* WorkspaceWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9183D9C2DB406538601D33 /* WorkspaceWindowController.swift */; };
 		D10A85FE5C3AF7F100FAF722 /* StatusItemMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48506E36134F710544DC49CA /* StatusItemMenu.swift */; };
 		D40BE45B4EE4BB1462A34A4B /* TerminalSessionOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A6E6B856E9CF0229E38E57 /* TerminalSessionOpener.swift */; };
 		D48F19C02711831D9678C4D1 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = F6E61A749B9AF8CCF4DDD2D6 /* Sparkle */; };
+		D7C9806451A0C42B3BCE1475 /* AgentDraftStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25A0A9F641C4ACD649D464F8 /* AgentDraftStateTests.swift */; };
 		DB5188081DFCC108113FB924 /* WorkspaceBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D09C46D2E8EF437EAFE95469 /* WorkspaceBoardView.swift */; };
 		DE1ED625BE58BCFBBAF98CC9 /* WorkloadSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BBAE50AD7E339CECA2EAA2 /* WorkloadSection.swift */; };
 		E06CD2973FC776E1EB460DD3 /* WorkspaceLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFB2E74C6F779BF0F9A9E18 /* WorkspaceLayoutTests.swift */; };
@@ -80,6 +86,7 @@
 		EA70C75EAE03957D64C8A89A /* IdentityAvatarImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8F49D83D230FB079EF27B2 /* IdentityAvatarImage.swift */; };
 		EAB192230237252B27C9D1AE /* ReviewWorkspaceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFCB7D0A84533B0C01E61EC /* ReviewWorkspaceState.swift */; };
 		F751EBF210E1E91BB7E0B863 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A06FCA62CDE78A733A5E75 /* AppModel.swift */; };
+		FC2038DA7314778211D7B8B6 /* GitHubBar.icns in Resources */ = {isa = PBXBuildFile; fileRef = F6DADEA92D5E8CB80D1E1F55 /* GitHubBar.icns */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -115,18 +122,22 @@
 
 /* Begin PBXFileReference section */
 		00267391D51B706447CDBD9D /* ReviewChatPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewChatPanel.swift; sourceTree = "<group>"; };
+		0469668AD1397C59C3238299 /* ReviewAgentActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewAgentActionsView.swift; sourceTree = "<group>"; };
 		09315F24ABF36A98201E1A87 /* ReviewDiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewDiffView.swift; sourceTree = "<group>"; };
 		0C9F267C10B03ACBBD93F609 /* WorkspaceDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceDashboard.swift; sourceTree = "<group>"; };
 		0CC8053760D622F2FF04D61B /* StatusIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusIconRenderer.swift; sourceTree = "<group>"; };
 		0F1741DCE7543D2E3AD1644A /* WorkspaceModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceModel.swift; sourceTree = "<group>"; };
+		10A75CBDA81DBDCF56B0E195 /* ReviewPublicationPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPublicationPlanTests.swift; sourceTree = "<group>"; };
 		10BD98E8C7F2AD6A97FECDB8 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		15A06FCA62CDE78A733A5E75 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		1D41361A154826539DFBF924 /* ReviewWorkspaceModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewWorkspaceModel.swift; sourceTree = "<group>"; };
 		1E95B35C12F289F4D23BAED8 /* AgentMarkdownTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMarkdownTests.swift; sourceTree = "<group>"; };
+		25A0A9F641C4ACD649D464F8 /* AgentDraftStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDraftStateTests.swift; sourceTree = "<group>"; };
 		2AA14DE32C2192BBB303D436 /* GitHubBarWorkspaceCLI */ = {isa = PBXFileReference; includeInIndex = 0; path = GitHubBarWorkspaceCLI; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F9AA3176DC588A1F2C25514 /* GitHubBar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GitHubBar.entitlements; sourceTree = "<group>"; };
 		3032CADDBD780743B46B5B3A /* CorePRSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorePRSearchService.swift; sourceTree = "<group>"; };
 		32478A5D3AA6DE695EA722AD /* ReviewWorkspaceRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewWorkspaceRenderingTests.swift; sourceTree = "<group>"; };
+		34D4FC78ED4ACD4E7EF3028B /* ReviewAgentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewAgentContext.swift; sourceTree = "<group>"; };
 		3775F835007C3A60C9799F58 /* AgentMarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMarkdownView.swift; sourceTree = "<group>"; };
 		38380275717FD18A95869865 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		3B9813F72CF2F4CB20333095 /* UpdateControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateControllerTests.swift; sourceTree = "<group>"; };
@@ -136,6 +147,7 @@
 		464705010379FB9898CD5D01 /* AppearanceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceController.swift; sourceTree = "<group>"; };
 		48506E36134F710544DC49CA /* StatusItemMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemMenu.swift; sourceTree = "<group>"; };
 		4B8BC861FAD83268A8A924F5 /* review-chat-adapter.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "review-chat-adapter.py"; sourceTree = "<group>"; };
+		4B9DA0A8197C81028CE26E70 /* AgentReviewActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentReviewActionTests.swift; sourceTree = "<group>"; };
 		4E92E7653755A1285ACBB51A /* GlobalHotKeyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKeyController.swift; sourceTree = "<group>"; };
 		599E1CA2EE38488262F59055 /* PRSearchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSearchModel.swift; sourceTree = "<group>"; };
 		5CE41C26ABE21A457E830821 /* ApplicationMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMenuController.swift; sourceTree = "<group>"; };
@@ -182,11 +194,13 @@
 		D6A38F19571B0CCF0410AD9F /* StatusMenuSizing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuSizing.swift; sourceTree = "<group>"; };
 		D9A6E6B856E9CF0229E38E57 /* TerminalSessionOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSessionOpener.swift; sourceTree = "<group>"; };
 		DA9183D9C2DB406538601D33 /* WorkspaceWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceWindowController.swift; sourceTree = "<group>"; };
+		DBE61D33BA11C1B887222970 /* ReviewPublicationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPublicationPlan.swift; sourceTree = "<group>"; };
 		DC906FEE759C48B0E09140D2 /* PRSearchWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSearchWindowController.swift; sourceTree = "<group>"; };
 		DD9F73DA43CC365AD4AB94DE /* SparkleUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateController.swift; sourceTree = "<group>"; };
 		DEFB2E74C6F779BF0F9A9E18 /* WorkspaceLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceLayoutTests.swift; sourceTree = "<group>"; };
 		E28D68F364DCAF36CDC59A63 /* ReviewWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewWorkspaceView.swift; sourceTree = "<group>"; };
 		EEB074387FC440F72D716560 /* ReviewWorkspaceStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewWorkspaceStateTests.swift; sourceTree = "<group>"; };
+		F6DADEA92D5E8CB80D1E1F55 /* GitHubBar.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = GitHubBar.icns; sourceTree = "<group>"; };
 		FA42CDC7AF3190F12EFC399E /* PRSearchRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSearchRenderingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -235,12 +249,15 @@
 		1C30734206E57128FA29FCC6 /* GitHubBarTests */ = {
 			isa = PBXGroup;
 			children = (
+				25A0A9F641C4ACD649D464F8 /* AgentDraftStateTests.swift */,
 				1E95B35C12F289F4D23BAED8 /* AgentMarkdownTests.swift */,
+				4B9DA0A8197C81028CE26E70 /* AgentReviewActionTests.swift */,
 				AE671023ED80F3DAAC5E5207 /* MultilineComposerTests.swift */,
 				671581934811F4CD6E829E4E /* PRNavigationTests.swift */,
 				90A3CCC49880BD2AAACFA942 /* PRSearchModelTests.swift */,
 				FA42CDC7AF3190F12EFC399E /* PRSearchRenderingTests.swift */,
 				C213542E823D25A9490016A3 /* PRSearchScopeTests.swift */,
+				10A75CBDA81DBDCF56B0E195 /* ReviewPublicationPlanTests.swift */,
 				86697FD3B941E58EB326E583 /* ReviewWorkspaceModelTests.swift */,
 				32478A5D3AA6DE695EA722AD /* ReviewWorkspaceRenderingTests.swift */,
 				EEB074387FC440F72D716560 /* ReviewWorkspaceStateTests.swift */,
@@ -284,6 +301,7 @@
 			isa = PBXGroup;
 			children = (
 				2F9AA3176DC588A1F2C25514 /* GitHubBar.entitlements */,
+				F6DADEA92D5E8CB80D1E1F55 /* GitHubBar.icns */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -355,10 +373,13 @@
 		56E7DED8309A7A1CF1F50C05 /* Workspace */ = {
 			isa = PBXGroup;
 			children = (
+				0469668AD1397C59C3238299 /* ReviewAgentActionsView.swift */,
+				34D4FC78ED4ACD4E7EF3028B /* ReviewAgentContext.swift */,
 				00267391D51B706447CDBD9D /* ReviewChatPanel.swift */,
 				83430EC99D5CDF9B13FC1578 /* ReviewConversationView.swift */,
 				7D0E72DA949D8B0534B618FA /* ReviewDetailView.swift */,
 				09315F24ABF36A98201E1A87 /* ReviewDiffView.swift */,
+				DBE61D33BA11C1B887222970 /* ReviewPublicationPlan.swift */,
 				1D41361A154826539DFBF924 /* ReviewWorkspaceModel.swift */,
 				9DFCB7D0A84533B0C01E61EC /* ReviewWorkspaceState.swift */,
 				E28D68F364DCAF36CDC59A63 /* ReviewWorkspaceView.swift */,
@@ -539,6 +560,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FC2038DA7314778211D7B8B6 /* GitHubBar.icns in Resources */,
 				33242B6B2E4CEA400F51E788 /* agent-chat.md in Resources */,
 				AC75F45FEA6BD136F0341770 /* review-chat-adapter.py in Resources */,
 			);
@@ -551,12 +573,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7C9806451A0C42B3BCE1475 /* AgentDraftStateTests.swift in Sources */,
 				6EA175A85028A276777F68E4 /* AgentMarkdownTests.swift in Sources */,
+				012C53A865F94CD06753C02D /* AgentReviewActionTests.swift in Sources */,
 				06133D3CC5673CDCF9DE6469 /* MultilineComposerTests.swift in Sources */,
 				AB683DCE8F4E3C2107D0D9BA /* PRNavigationTests.swift in Sources */,
 				BD95E86C8DD64225EEFEE0F0 /* PRSearchModelTests.swift in Sources */,
 				552B0CD68C965C53BEE612BB /* PRSearchRenderingTests.swift in Sources */,
 				222BCA7B2242E37AA295D873 /* PRSearchScopeTests.swift in Sources */,
+				2FE3BFF302D68724700125B1 /* ReviewPublicationPlanTests.swift in Sources */,
 				8D1EFE8A5B0B2273CFCF4A2D /* ReviewWorkspaceModelTests.swift in Sources */,
 				92888506FCEE0722CB84E94A /* ReviewWorkspaceRenderingTests.swift in Sources */,
 				CB8CD3C24FDA6967724D7137 /* ReviewWorkspaceStateTests.swift in Sources */,
@@ -606,10 +631,13 @@
 				C4365C499C9F8EFB21D56CBC /* PopoverView.swift in Sources */,
 				B5EB0FFF8FE8ACFF9C185652 /* PullRequestRow.swift in Sources */,
 				92D81BE0493C6FAEDF136177 /* RepositoryScopeControl.swift in Sources */,
+				3905C009051E234863A4B6AE /* ReviewAgentActionsView.swift in Sources */,
+				CD51ACB9AF50A1CD9AA8403F /* ReviewAgentContext.swift in Sources */,
 				E35C9E04FA00D6BFEAF48CAD /* ReviewChatPanel.swift in Sources */,
 				C1D65253038D072BD09FFEAB /* ReviewConversationView.swift in Sources */,
 				9813ACB63B3F24B96E9B6633 /* ReviewDetailView.swift in Sources */,
 				018C00B3B8C531A67157BE74 /* ReviewDiffView.swift in Sources */,
+				14C6EAB3CD6325C117CFE647 /* ReviewPublicationPlan.swift in Sources */,
 				55781A68F41FF5D2FD8D8B3B /* ReviewWorkspaceModel.swift in Sources */,
 				EAB192230237252B27C9D1AE /* ReviewWorkspaceState.swift in Sources */,
 				0ACF9F8FF0F77B335E720C40 /* ReviewWorkspaceView.swift in Sources */,

@@ -16,10 +16,11 @@ struct ReviewInlineDraftCard: View {
         if let comment {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
-                    Label("Local draft", systemImage: "pencil").font(.caption.bold()).foregroundStyle(.orange)
+                    Label(comment.agentName.map { "\($0) draft" } ?? "Local draft", systemImage: "pencil").font(.caption.bold()).foregroundStyle(.orange)
                     Spacer()
                     Text("Not published").font(.caption).foregroundStyle(.secondary)
                 }
+                if let date = comment.createdAt { Text(date, style: .relative).font(.caption2).foregroundStyle(.secondary) }
                 Text("\(comment.path):\(comment.line) · \(comment.side)").font(.caption.monospaced()).foregroundStyle(.secondary)
                 if editing {
                     MultilineComposer(text: Binding(get: { self.comment?.body ?? "" }, set: { review.updateInlineDraft(draftID, body: $0) }),
@@ -84,4 +85,43 @@ struct ReviewConversationCard: View {
 
 private extension Optional where Wrapped == String {
     var orEmpty: String { self ?? "" }
+}
+
+struct ReviewGeneralDraftCard: View {
+    @Bindable var review: ReviewWorkspaceModel
+    let draftID: UUID
+    @State private var editing = false
+    private var comment: WorkspaceGeneralDraft? { review.draft.generalComments.first { $0.id == draftID } }
+    var body: some View {
+        if let comment {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    Label(comment.agentName.map { "\($0) draft" } ?? "General draft", systemImage: "pencil").font(.caption.bold()).foregroundStyle(.orange)
+                    Spacer()
+                    Text("Not published").font(.caption).foregroundStyle(.secondary)
+                }
+                if let date = comment.createdAt { Text(date, style: .relative).font(.caption2).foregroundStyle(.secondary) }
+                if let location = comment.anchorDescription { Text(location).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled) }
+                if editing {
+                    MultilineComposer(text: Binding(get: { self.comment?.body ?? "" }, set: { value in
+                        review.editDraft { draft in
+                            if let index = draft.generalComments.firstIndex(where: { $0.id == draftID }) { draft.generalComments[index].body = value }
+                        }
+                    }), placeholder: "Edit general draft", isEnabled: review.local.canSave && !comment.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                        actionLabel: "Save draft") { editing = false }.frame(height: 95)
+                    Button("Save draft") { editing = false }.disabled(comment.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } else { AgentMarkdownView(text: comment.body) }
+                HStack {
+                    Button(editing ? "Done" : "Edit") { editing.toggle() }.disabled(!review.local.canSave)
+                    Button("Remove") { review.editDraft { $0.generalComments.removeAll { $0.id == draftID } } }.disabled(!review.local.canSave)
+                    Spacer()
+                    Button("Post to GitHub") {
+                        if let identity = review.identity { review.submitDraft(draftID, target: identity) }
+                    }.disabled(review.submitting || !review.local.canSave || review.sinceLastReview || comment.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }.controlSize(.small)
+            }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .overlay { RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.25)) }
+        }
+    }
 }

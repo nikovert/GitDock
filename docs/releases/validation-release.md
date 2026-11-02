@@ -15,6 +15,11 @@ not part of GitHubBar's future trusted Developer ID/Sparkle update channel.
 - Review unified or split diffs, save inline drafts, and explicitly submit reviews.
 - Ask a configured local agent about the selected PR or diff line. Configure this in
   Settings → Workspace chat; see the bundled `agent-chat.md` guide.
+- Run **Agent review** on a PR; findings remain editable local inline/general drafts.
+  Publish each draft or use **Publish all drafts…** explicitly.
+- Use **Have an agent make all fixes…** to edit the default assess/fix/test/commit
+  prompt and start a fresh Codex/Claude PR worktree session. Commits stay local.
+- Recognize GitHubBar by its new emerald branch app icon.
 - Preview merged-worktree cleanup with PR titles, descriptions, and session choices.
 
 Agent sessions use local tmux and the configured terminal. Chat is advisory; publishing
@@ -42,7 +47,7 @@ Run from a clean checkout:
 
 ```sh
 scripts/check.sh
-GITHUBBAR_VERSION=0.7.0 scripts/package-validation.sh
+GITHUBBAR_VERSION=0.8.0 scripts/package-validation.sh
 lipo -archs .build/validation/GitHubBar.app/Contents/MacOS/GitHubBar
 codesign --verify --deep --strict --verbose=2 .build/validation/GitHubBar.app
 plutil -extract CFBundleIdentifier raw .build/validation/GitHubBar.app/Contents/Info.plist
@@ -72,7 +77,16 @@ After installing the latest build, test these paths in order:
 6. **Local chat:** choose Codex or Claude, Test connection, and ask about a selected
    line. Test Stop, Retry, code rendering, citations, Enter to send, and Ctrl+Enter
    for a newline.
-7. **Optional live publishing on a disposable PR:** create two drafts and a summary.
+7. **Agent review:** run it on a test PR and inspect Threads plus both diff layouts.
+   Findings must stay local until you explicitly post them. Test cancellation,
+   editing/removing findings, individual posting, and Publish all. Unavailable
+   locations must remain labelled general drafts.
+8. **Fix session on a disposable PR:** configure a local checkout/worktree root,
+   open **Have an agent make all fixes…**, inspect/reset/edit its prompt, choose
+   Codex/Claude, and start. Confirm Terminal opens at the PR head. Check that it
+   assessed published comments and local drafts, tested changes, and committed
+   locally. Check the commit yourself; the app does not claim completion or push it.
+9. **Optional live publishing on a disposable PR:** create two drafts and a summary.
    Post one draft individually; the other and summary must remain. Then submit the
    remaining draft as a Comment without a summary. Check GitHub for exactly the
    intended comments. Changes made during a submission should remain local.

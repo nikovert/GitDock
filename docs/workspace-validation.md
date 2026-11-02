@@ -1,7 +1,7 @@
 # Workspace improvements: local validation
 
 Work branch: `feat/workspace-review-improvements`, based on `03057aa`.
-This work is local; no release is published and no real review is posted by the checks.
+The workspace improvements were merged to main at `5b060ce`; the installation guide followed at `a5a3339`. No real review is posted by the checks.
 
 ## Automated checks
 
@@ -26,6 +26,38 @@ collapsed its width; it passes with explicit left/right column containers. Scree
 were inspected in light/dark appearances at 900, 1380, and 1800 point window widths,
 including dashboard stacks, draft cards, grouped replies, and the chat code block.
 Updated examples are in `docs/assets/`.
+
+## Explicit agent review and fix actions (2026-11-02)
+
+The follow-up `feat/agent-draft-actions` adds read-only agent reviews imported into
+shared local inline/general drafts, individual/all publication, and interactive
+fix/test/local-commit sessions in a fresh pinned PR worktree. It also bundles the
+generated emerald branch icon. No live provider session or GitHub write was used
+for implementation verification.
+
+- Core: **200 tests**, including 12 fix-session and 5 structured-review protocol
+  tests. Fixtures verify literal prompt transport, configured permission defaults,
+  large private prompt files, checkout/origin and stale-head checks, failed launches,
+  real local Git worktrees, legacy chat compatibility, and malformed findings.
+- App: **93 tests**, including draft persistence/provenance, both exact diff sides,
+  unavailable locations, cancellation/account navigation, duplicate findings,
+  read-only review imports, fresh fix context/base changes, individual/batch posting,
+  concurrent edits, partial multi-post failures, oversized drafts, user-summary
+  validation, and strict UTF-8 context limits.
+- Python adapters: **16 tests**, using controlled CLI fixtures only.
+- `scripts/check.sh` passed: core executable checks, strict Swift 6 typecheck,
+  avatar/menu checks, plist validation, and project generation.
+- Final independent review found no actionable issues after fixing location
+  preservation, large-batch publishing, and unintended CLI permission overrides.
+- Native rendering covers light/dark workspace and fixes sheet, minimum/large
+  windows, shared agent draft cards, explicit publishing controls, and chat code.
+  Split diffs remain horizontally scrollable when both columns exceed the viewport.
+
+Manual installation checks remain required below. For the new actions, additionally
+run **Agent review**, edit/remove findings, publish one while retaining the rest,
+and publish all on a disposable PR. Try cancellation and unavailable locations.
+Configure a disposable checkout, inspect the fixes prompt, launch Codex/Claude,
+and verify its tests and actual local commit in Terminal. Confirm no automatic push.
 
 ## Approval classification live check
 
@@ -56,7 +88,7 @@ xcodebuild test -project GitHubBar.xcodeproj -scheme GitHubBar \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
 python3 -m unittest discover -s scripts/tests -v
 scripts/check.sh
-GITHUBBAR_VERSION=0.7.0-workspace scripts/package-validation.sh
+GITHUBBAR_VERSION=0.8.0 scripts/package-validation.sh
 ```
 
 Within a restricted agent sandbox, Xcode cache access, Swift macro helpers, and the

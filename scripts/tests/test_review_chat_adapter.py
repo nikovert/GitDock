@@ -136,6 +136,70 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
         self.assertEqual(response["answer"], "Consider the guard in Sources/Batch.swift:12.")
         self.assertEqual(response["citations"], [])
 
+    def review(self, provider="codex"):
+        return self.run_adapter(provider, raw=json.dumps({**REQUEST, "task": "review"}).encode())
+
+    def test_review_returns_structured_findings_for_both_providers(self):
+        findings = [{"body": "Check empty input", "path": "src/file.swift", "line": 12, "side": "LEFT"},
+                    {"body": "Document migration"}, {"body": "Need more context", "path": "missing.swift"}]
+        payload = {"answer": "Reviewed supplied changes", "citations": [], "findings": findings}
+        self.fake("print(" + repr(json.dumps(payload)) + ")")
+        for provider in ("codex", "claude"):
+            with self.subTest(provider=provider):
+                result = self.review(provider)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                response = json.loads(result.stdout)
+                self.assertEqual(response["findings"], findings)
+                self.assertEqual(response["prURL"], REQUEST["prURL"])
+
+    def test_review_accepts_explicit_empty_findings(self):
+        self.fake('print(\'{"answer":"Reviewed","citations":[],"findings":[]}\')')
+        result = self.review()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["findings"], [])
+
+    def test_review_rejects_legacy_prose_and_malformed_or_unbounded_findings(self):
+        invalid = [None, "prose", [{"path": "file"}], [{"body": "  "}], [{"body": "x\0y"}],
+                   [{"body": "x", "line": True}], [{"body": "x", "line": 0}],
+                   [{"body": "x", "side": "OTHER"}], [{"body": "x", "path": "../file"}],
+                   [{"body": "é" * 8193}], [{"body": "x"}] * 101,
+                   [{"body": "x" * 16384}] * 17]
+        outputs = ["No issues found", json.dumps({"answer": "Legacy", "citations": []})]
+        outputs += [json.dumps({"answer": "Reviewed", "citations": [], "findings": value}) for value in invalid]
+        outputs += [json.dumps({"answer": "Reviewed", "citations": [{"path": "file", "line": 0}], "findings": []}),
+                    json.dumps({"answer": "", "citations": [], "findings": []}),
+                    json.dumps({"answer": "Reviewed", "findings": []})]
+        for output in outputs:
+            with self.subTest(output=output[:100]):
+                self.fake("print(" + repr(output) + ")")
+                result = self.review()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, b"")
+                self.assertIn(b"review", result.stderr.lower())
+
+    def test_review_prompt_keeps_read_only_flags_and_context_as_data(self):
+        marker = self.directory / "observed.json"
+        self.fake("import json,sys\nopen(" + repr(str(marker)) + ", 'w').write(json.dumps({'argv':sys.argv[1:], 'prompt':sys.stdin.read()}))\n"
+                  "print('{\"answer\":\"Reviewed\",\"citations\":[],\"findings\":[]}')")
+        for provider in ("codex", "claude"):
+            result = self.review(provider)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            observed = json.loads(marker.read_text())
+            sent = json.loads(observed["prompt"].split("\nREQUEST_JSON:\n", 1)[1])
+            self.assertEqual(sent, {**REQUEST, "task": "review"})
+            self.assertIn("findings", observed["prompt"])
+            if provider == "codex":
+                self.assertEqual(observed["argv"][observed["argv"].index("--sandbox") + 1], "read-only")
+            else:
+                self.assertEqual(observed["argv"][observed["argv"].index("--tools") + 1], "")
+
+    def test_unknown_task_is_rejected_before_backend_launch(self):
+        marker = self.directory / "started"
+        self.fake(f"open({str(marker)!r}, 'w').close()")
+        result = self.run_adapter(raw=json.dumps({**REQUEST, "task": "fix-and-publish"}).encode())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(marker.exists())
+
     def test_nonzero_exit_and_invalid_utf8_do_not_leak_provider_output(self):
         for body in ["import sys; print('PRIVATE'); print('SECRET', file=sys.stderr); sys.exit(7)",
                      "import sys; sys.stdout.buffer.write(b'\\xff')"]:

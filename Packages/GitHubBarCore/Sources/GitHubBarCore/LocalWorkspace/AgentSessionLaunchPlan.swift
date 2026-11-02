@@ -8,9 +8,15 @@ public enum AgentSessionLaunchError: Error, LocalizedError, Sendable {
     case wrongRepositoryRemote(String)
     case unmanagedWorktree
     case dirtyWorktree
+    case invalidFixRequest
+    case stalePullRequestHead
+    case invalidInitialPrompt
 
     public var errorDescription: String? {
         switch self {
+        case .invalidFixRequest: "The fix request needs a pinned PR identity, non-empty instructions, and discussion within the supported size limit."
+        case .stalePullRequestHead: "The pull-request head changed. Refresh the PR and review the fix instructions again."
+        case .invalidInitialPrompt: "The initial agent prompt is invalid or too large for a shell command."
         case .invalidPath: "Choose absolute checkout and worktree-root paths."
         case .missingCheckout: "Configure an existing local checkout for this repository."
         case let .missingExecutable(name): "Could not find \(name) in PATH or common install locations."
@@ -31,6 +37,7 @@ public struct AgentSessionLaunchPlan: Sendable {
     public let tmuxSessionName: String
     public let agentExecutablePath: String
     public let id: UUID
+    public let initialPrompt: String?
 
     public init(
         subject: BoardSubject,
@@ -38,6 +45,7 @@ public struct AgentSessionLaunchPlan: Sendable {
         checkoutPath: String,
         worktreeRoot: String,
         agentExecutablePath: String,
+        initialPrompt: String? = nil,
         id: UUID = UUID()
     ) throws {
         let checkout = URL(fileURLWithPath: checkoutPath).standardizedFileURL.path
@@ -58,6 +66,12 @@ public struct AgentSessionLaunchPlan: Sendable {
         tmuxSessionName = "githubbar-\(agent.rawValue)-\(stem)"
         self.agentExecutablePath = agentExecutablePath
         self.id = id
+        self.initialPrompt = initialPrompt
+        guard !agentExecutablePath.contains("\0"),
+              initialPrompt?.contains("\0") != true,
+              tmuxArguments.last!.utf8.count <= Self.maximumShellCommandBytes else {
+            throw AgentSessionLaunchError.invalidInitialPrompt
+        }
     }
 
     public var gitFetchArguments: [String] {
@@ -69,9 +83,20 @@ public struct AgentSessionLaunchPlan: Sendable {
         ["-C", checkoutPath, "worktree", "add", worktreePath, branchName]
     }
 
+    // Leave ample room below ARG_MAX for tmux and the inherited process environment.
+    static let maximumShellCommandBytes = 96 * 1_024
+
+    public var gitFetchedHeadArguments: [String] {
+        ["-C", checkoutPath, "rev-parse", "--verify", "refs/heads/\(branchName)^{commit}"]
+    }
+
     public var tmuxArguments: [String] {
-        ["new-session", "-d", "-s", tmuxSessionName, "-c", worktreePath,
-         "exec \(Self.shellQuote(agentExecutablePath))"]
+        var arguments = [agentExecutablePath]
+        if let initialPrompt {
+            arguments += ["--", initialPrompt]
+        }
+        return ["new-session", "-d", "-s", tmuxSessionName, "-c", worktreePath,
+                "exec " + arguments.map(Self.shellQuote).joined(separator: " ")]
     }
 
     private var branchName: String {

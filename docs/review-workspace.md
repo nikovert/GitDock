@@ -62,11 +62,11 @@ The shared multiline composer uses **Enter** for its labelled action and
 **Ctrl+Enter** for a newline. Input-method composition can finish without sending.
 Inline editors **Save draft** locally; publication requires **Post to GitHub**.
 
-Each draft's **Post to GitHub** submits only that inline comment as a Comment review.
-Other drafts and the review summary stay untouched. **Submit review…** opens a batch
+Each draft's **Post to GitHub** submits only that inline or general comment as a Comment review.
+Other drafts and the review summary stay untouched. **Publish all drafts…** (or **Submit review…** without drafts) opens a batch
 sheet with Comment, Approve, or Request changes. Comment accepts inline comments
 without a summary. Request changes requires a summary; approval may omit it.
-Approving your own PR is not offered.
+Approving your own PR is not offered. Large batches are split into review posts within GitHub limits, with the summary and selected decision last. The sheet shows the number of posts. A single oversized comment must be shortened before publishing.
 
 Progress and errors stay visible. Confirmed success clears only the submitted
 versions of comments/summary, preserving edits made while posting, and refreshes
@@ -79,6 +79,32 @@ are never transplanted. The submission sheet stays bound to its original identit
 **Mark reviewed** and successful batch reviews save a local comparison baseline;
 individual comment posting does not mark the whole PR reviewed. **Since my last
 review** compares that commit to the head; inline drafting is disabled in comparisons.
+
+## Agent reviews and fixes
+
+Click **Agent review** on an open PR card or in the review header. The configured
+Codex, Claude, or custom review adapter receives bounded code and discussion context
+in read-only mode. Findings become local drafts in **Threads** and beneath exact
+available diff lines. Findings without a valid current anchor remain general drafts
+with their original location explained; that explanation is preserved when posted.
+No GitHub review is posted by this action. Review, edit, remove, or publish each
+finding, or use **Publish all drafts…**. Repeated unchanged findings are deduplicated.
+Cancellation or changing the account/PR/revision discards late results. A review
+receipt shows the summary, provider, and whether context was incomplete.
+
+**Have an agent make all fixes…** opens a sheet with editable default instructions
+and a Codex/Claude picker. Configure the repository checkout, worktree root, and
+local CLI in **Workspace** first. Starting re-fetches published comments, includes
+all current local drafts and the review summary, verifies account/head/base, and
+creates a fresh managed worktree at that exact head. Oversized comment context is
+rejected rather than silently truncated.
+
+The default prompt asks the agent to assess every comment, reject stale or incorrect
+suggestions, apply justified fixes, run relevant tests, and commit locally. It asks
+for a result summary and commit hash. Existing CLI permission defaults apply. The
+app reports that a session started; inspect progress, tests, and the actual commit
+in Terminal. Pushing, publishing reviews, and merging require separate actions.
+These explicit actions use ordinary local sessions, without restoring Giles polling.
 
 ## Local chat and terminal sessions
 

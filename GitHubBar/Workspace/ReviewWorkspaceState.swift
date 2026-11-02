@@ -21,6 +21,31 @@ struct WorkspaceInlineDraft: Codable, Equatable, Identifiable {
     var line: Int
     var side: String
     var body: String
+    var agentName: String? = nil
+    var reviewRunID: UUID? = nil
+    var createdAt: Date? = nil
+}
+
+struct WorkspaceGeneralDraft: Codable, Equatable, Identifiable {
+    var id = UUID()
+    var body: String
+    var agentName: String? = nil
+    var reviewRunID: UUID? = nil
+    var anchorDescription: String? = nil
+    var createdAt: Date? = nil
+    var publicationBody: String {
+        guard let anchorDescription else { return body }
+        return body + "\n\nOriginal agent location (not attached to a current diff line): " + anchorDescription
+    }
+}
+
+struct WorkspaceAgentReviewReceipt: Codable, Equatable {
+    let id: UUID
+    let provider: String
+    let completedAt: Date
+    let summary: String
+    let findingCount: Int
+    let contextIncomplete: Bool
 }
 
 struct WorkspaceChatMessage: Codable, Equatable, Identifiable {
@@ -32,10 +57,30 @@ struct WorkspaceChatMessage: Codable, Equatable, Identifiable {
 struct WorkspaceReviewDraft: Codable, Equatable {
     var body = ""
     var comments: [WorkspaceInlineDraft] = []
+    var generalComments: [WorkspaceGeneralDraft] = []
     var viewedFiles: Set<String> = []
     var selectedFile: String?
     var messages: [WorkspaceChatMessage] = []
-    var hasUnsubmittedComments: Bool { !body.isEmpty || !comments.isEmpty }
+    var lastAgentReview: WorkspaceAgentReviewReceipt?
+    var allDraftCount: Int { comments.count + generalComments.count }
+    var hasUnsubmittedComments: Bool { !body.isEmpty || allDraftCount > 0 }
+    var publicationBody: String {
+        ([body] + generalComments.map(\.publicationBody)).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .joined(separator: "\n\n---\n\n")
+    }
+
+    init() {}
+    private enum CodingKeys: CodingKey { case body, comments, generalComments, viewedFiles, selectedFile, messages, lastAgentReview }
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        body = try c.decodeIfPresent(String.self, forKey: .body) ?? ""
+        comments = try c.decodeIfPresent([WorkspaceInlineDraft].self, forKey: .comments) ?? []
+        generalComments = try c.decodeIfPresent([WorkspaceGeneralDraft].self, forKey: .generalComments) ?? []
+        viewedFiles = try c.decodeIfPresent(Set<String>.self, forKey: .viewedFiles) ?? []
+        selectedFile = try c.decodeIfPresent(String.self, forKey: .selectedFile)
+        messages = try c.decodeIfPresent([WorkspaceChatMessage].self, forKey: .messages) ?? []
+        lastAgentReview = try c.decodeIfPresent(WorkspaceAgentReviewReceipt.self, forKey: .lastAgentReview)
+    }
 }
 
 @MainActor

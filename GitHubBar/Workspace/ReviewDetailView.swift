@@ -83,6 +83,8 @@ struct ReviewDetailView: View {
             if let snapshot = review.snapshot {
                 Text(snapshot.checksSummary).font(.caption).foregroundStyle(.secondary)
             }
+            ReviewAgentActionsView(review: review, workspace: workspace,
+                allowsActions: !subject.isStack && pullRequest?.state != .closed && pullRequest?.state != .merged)
         }.padding(20)
     }
 
@@ -120,6 +122,7 @@ struct ReviewDetailView: View {
                                     ForEach(draft.comments) { comment in
                                         Text("\(comment.path):\(comment.line) · \(comment.body)").textSelection(.enabled)
                                     }
+                                    ForEach(draft.generalComments) { comment in Text(comment.body).textSelection(.enabled) }
                                 }.padding(.vertical, 8)
                             }
                         }
@@ -134,8 +137,22 @@ struct ReviewDetailView: View {
     private func threads(_ snapshot: PRReviewSnapshot) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                Text("Your local inline drafts (\(review.draft.comments.count))").font(.headline)
-                if review.draft.comments.isEmpty { Text("No local inline drafts.").foregroundStyle(.secondary) }
+                HStack {
+                    Text("Your local drafts (\(review.draft.allDraftCount))").font(.headline)
+                    Spacer()
+                    if review.draft.hasUnsubmittedComments { Button("Publish all…") { openSubmission() }.controlSize(.small).disabled(review.submitting || !review.local.canSave) }
+                }
+                if let last = review.draft.lastAgentReview {
+                    DisclosureGroup("Latest \(last.provider) review · \(last.findingCount) findings") {
+                        Text(last.completedAt, style: .relative).font(.caption).foregroundStyle(.secondary)
+                        AgentMarkdownView(text: last.summary)
+                        if last.contextIncomplete { Text("The agent reviewed incomplete context.").font(.caption).foregroundStyle(.orange) }
+                    }
+                }
+                if review.draft.allDraftCount == 0 { Text("No local draft comments.").foregroundStyle(.secondary) }
+                ForEach(review.draft.generalComments) { comment in
+                    ReviewGeneralDraftCard(review: review, draftID: comment.id)
+                }
                 ForEach(review.draft.comments) { comment in
                     ReviewInlineDraftCard(review: review, draftID: comment.id)
                 }
@@ -155,23 +172,25 @@ struct ReviewDetailView: View {
             Divider()
             if let notice = review.submissionMessage ?? review.notice { Text(notice).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 16) }
             HStack {
-                Text("\(review.draft.comments.count) inline drafts · Saved locally")
+                Text("\(review.draft.comments.count) inline · \(review.draft.generalComments.count) general drafts · Saved locally")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if review.submitting { ProgressView().controlSize(.small) }
                 Button("Mark reviewed") { review.markReviewed() }
                     .disabled(review.snapshot == nil || review.submitting || !review.local.canSave)
-                Button("Submit review…") {
-                    if let identity = review.identity, let snapshot = review.snapshot {
-                        submissionTarget = ReviewSubmissionTarget(identity: identity, title: snapshot.title,
-                            ownPR: snapshot.author.lowercased() == identity.account.lowercased())
-                    }
-                }
+                Button(review.draft.hasUnsubmittedComments ? "Publish all drafts…" : "Submit review…") { openSubmission() }
                     .buttonStyle(.borderedProminent)
                     .disabled(review.snapshot == nil || review.sinceLastReview || review.submitting || !review.local.canSave)
             }.padding(12)
         }
     }
+    private func openSubmission() {
+        if let identity = review.identity, let snapshot = review.snapshot {
+            submissionTarget = ReviewSubmissionTarget(identity: identity, title: snapshot.title,
+                ownPR: snapshot.author.lowercased() == identity.account.lowercased())
+        }
+    }
+
 }
 
 struct ReviewSubmissionTarget: Identifiable {
@@ -187,13 +206,22 @@ struct ReviewSubmissionView: View {
     @State private var event = "COMMENT"
     @Environment(\.dismiss) private var dismiss
     private var valid: Bool { review.identity == target.identity && review.local.canSave }
-    private var canSubmit: Bool { valid && !review.submitting && (PRReviewEvent(rawValue: event)?.permits(body: draft.body, commentCount: draft.comments.count) == true) }
+    private var publicationPlan: [ReviewPublicationBatch]? {
+        guard let choice = PRReviewEvent(rawValue: event) else { return nil }
+        return try? ReviewPublicationPlan.make(draft: draft, event: choice)
+    }
+    private var publicationError: String? {
+        guard let choice = PRReviewEvent(rawValue: event) else { return nil }
+        do { _ = try ReviewPublicationPlan.make(draft: draft, event: choice); return nil }
+        catch { return error.localizedDescription }
+    }
+    private var canSubmit: Bool { valid && !review.submitting && publicationPlan != nil }
     private var draft: WorkspaceReviewDraft { review.local.draft(for: target.identity) }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Submit review to GitHub").font(.title2.bold())
             Text(target.title).font(.headline)
-            Text("\(draft.comments.count) inline comments · @\(target.identity.account) · Commit \(target.identity.headSHA.prefix(8))")
+            Text("\(draft.comments.count) inline · \(draft.generalComments.count) general comments · @\(target.identity.account) · Commit \(target.identity.headSHA.prefix(8))")
                 .foregroundStyle(.secondary)
             if !valid {
                 Text("The PR, account, or diff changed. Cancel and reopen this sheet after reviewing the current changes. Your original draft is retained.")
@@ -202,11 +230,25 @@ struct ReviewSubmissionView: View {
             MultilineComposer(text: Binding(get: { draft.body }, set: { value in if valid { review.editDraft { $0.body = value } } }),
                 placeholder: "Review summary", isEnabled: canSubmit, actionLabel: "Post to GitHub", allowsEmpty: true) { post() }
                 .frame(height: 150).disabled(!valid)
+            if !draft.generalComments.isEmpty {
+                DisclosureGroup("General draft comments included in this review (\(draft.generalComments.count))") {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(draft.generalComments) { comment in AgentMarkdownView(text: comment.publicationBody); Divider() }
+                        }
+                    }.frame(maxHeight: 160)
+                }
+            }
             Picker("Review decision", selection: $event) {
                 Text("Comment").tag("COMMENT")
                 if !target.ownPR { Text("Approve").tag("APPROVE"); Text("Request changes").tag("REQUEST_CHANGES") }
             }.pickerStyle(.radioGroup)
-            Text("This posts your review and inline drafts to GitHub as your monitored account.")
+            if let plan = publicationPlan, plan.count > 1 {
+                Text("GitHub's size limits require \(plan.count) review posts. The selected decision and summary are posted last. Confirmed parts are saved separately; a failed part stops further publication.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let publicationError { Text(publicationError).font(.caption).foregroundStyle(.orange) }
+            Text("This posts your review and all included drafts to GitHub as your monitored account.")
                 .font(.caption).foregroundStyle(.secondary)
             if event == "REQUEST_CHANGES" {
                 Text("Request changes requires a summary above.")

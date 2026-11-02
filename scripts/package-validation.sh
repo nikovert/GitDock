@@ -98,6 +98,7 @@ lipo -create \
   -output "$app_path/Contents/MacOS/GitHubBarWorkspaceCLI"
 
 cp GitHubBar/Resources/Info.plist "$app_path/Contents/Info.plist"
+cp GitHubBar/Resources/GitHubBar.icns "$app_path/Contents/Resources/GitHubBar.icns"
 cp docs/releases/validation-release.md "$app_path/Contents/Resources/VALIDATION-README.md"
 cp docs/agent-chat.md "$app_path/Contents/Resources/agent-chat.md"
 cp scripts/review-chat-adapter.py "$app_path/Contents/Resources/review-chat-adapter.py"

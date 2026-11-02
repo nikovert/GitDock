@@ -36,6 +36,12 @@ public struct ReviewChatClient: ReviewChatServicing {
         guard response.prURL == request.prURL, response.headSHA == request.headSHA else {
             throw ReviewChatError.mismatchedResponse
         }
+        if request.task == .review && response.findings == nil {
+            throw ReviewChatError.invalidResponse
+        }
+        if let findings = response.findings, !ReviewAgentFinding.areValid(findings) {
+            throw ReviewChatError.invalidResponse
+        }
         return response
     }
 

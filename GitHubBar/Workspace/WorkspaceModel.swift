@@ -212,6 +212,14 @@ final class WorkspaceModel {
         }
     }
 
+    func launchFixes(_ request: AgentFixRequest, agent: AgentKind) async throws -> AgentSessionLink {
+        guard monitoredAccountLogin?.caseInsensitiveCompare(request.accountLogin) == .orderedSame,
+              selectedSubject?.key == request.key else { throw PRReviewError.accountMismatch }
+        let session = try await sessions.launchFixes(request: request, agent: agent)
+        await reload()
+        return session
+    }
+
     func pin(_ agent: AgentKind, for subject: BoardSubject, path: String, tmuxName: String?) {
         perform(.pin(subject, agent)) { [sessions] in
             _ = try await sessions.pinExisting(

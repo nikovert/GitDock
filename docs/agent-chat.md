@@ -1,4 +1,4 @@
-# Advisory PR chat adapters
+# Advisory PR chat and agent review adapters
 
 GitHubBar chat uses **Review Chat protocol v1**: one UTF-8 JSON request on stdin,
 EOF, then one UTF-8 JSON response on stdout and exit status zero. There is no
@@ -32,7 +32,7 @@ Custom adapter exposes the executable, literal arguments, display name, and
 working directory fields. `ReviewChatConfiguration` stores those values plus a
 `provider` (`codex`, `claude`, or `custom`). Existing configurations without that
 key remain readable: bundled `--provider` arguments identify their provider,
-while other adapters remain custom. The wire request/response is unchanged.
+while other adapters remain custom. Ordinary chat wire requests remain unchanged.
 Defaults are empty, so an unconfigured adapter cannot launch. `validated()`
 requires an existing absolute executable path and an existing absolute directory.
 Display names may be empty and are limited to 200 UTF-8 bytes. Arguments are limited
@@ -98,6 +98,49 @@ means the new revision; omitted side defaults to `RIGHT`. These are coordinates,
 not a guarantee that the cited line exists in the currently loaded partial diff.
 The UI must resolve them against its selected snapshot before navigating.
 
+### Structured agent reviews
+
+The optional request field `"task": "review"` asks for an advisory review of the
+supplied changes. Omitting `task` (or setting it to `null`) retains ordinary chat.
+The bundled adapter uses the same read-only or tool-disabled provider flags for
+both tasks. A review never applies fixes or posts comments.
+
+Review responses retain `prURL`, `headSHA`, `answer`, and `citations` and must add
+a `findings` array:
+
+```json
+{
+  "prURL": "https://github.com/example/repo/pull/7",
+  "headSHA": "0123456789abcdef0123456789abcdef01234567",
+  "answer": "Found two actionable issues in the supplied changes.",
+  "citations": [],
+  "findings": [
+    {"body": "The empty batch reaches the indexed read and crashes.", "path": "Sources/Batch.swift", "line": 42, "side": "RIGHT"},
+    {"body": "The migration needs a documented rollback procedure."}
+  ]
+}
+```
+
+Each finding has a nonblank `body`; `path`, `line`, and `side` are optional and
+remain absent when not supplied. An explicit `"findings": []` means the review
+completed without actionable findings. Missing or malformed findings, prose, and
+legacy chat-only responses are review failures, never an empty-review success.
+Custom adapters must implement this extension to support Agent review. Existing
+chat-only custom adapters continue to support chat.
+
+Responses allow at most 100 findings, 16 KiB of UTF-8 body text per finding and
+256 KiB of body text in total. Bodies cannot contain NUL. Optional paths must be
+nonempty relative repository paths without NUL or `..` components and at most
+4096 UTF-8 bytes. Optional lines must be positive integers; optional sides must
+be `LEFT` or `RIGHT`. Invalid values reject the whole response. No coordinates
+are inferred from a body or completed from missing fields.
+
+The app resolves any complete anchor against the exact loaded PR snapshot. A
+finding with an absent or unavailable anchor becomes a general draft comment.
+Agent findings remain editable local drafts until the user explicitly publishes
+an individual comment or all drafts. A failed or cancelled review preserves
+existing drafts.
+
 Stdout must contain only one JSON object, with optional surrounding whitespace.
 Progress events, markdown fences, banners, and multiple JSON objects are invalid.
 Use stderr for brief diagnostics. Nonzero exit status always means failure, even
@@ -150,7 +193,7 @@ It sends the question, context, policy, and conversation to the selected provide
 and asks for a final JSON object with `answer` and `citations`. It validates every
 citation's relative path, positive integer line, and LEFT/RIGHT side before wrapping
 the result with the request's PR/head identity. Missing side defaults to RIGHT.
-Plain prose or malformed structured replies remain plain answer text with an empty
+For ordinary chat, plain prose or malformed structured replies remain plain answer text with an empty
 citations array; the adapter never guesses coordinates from prose. The UI checks
 accepted citations against its loaded diff. The core contract stays vendor-neutral.
 
@@ -202,8 +245,8 @@ restricts model-generated shell commands; it does not mean all CLI integrations
 and local startup behavior are incapable of effects. Claude's disabled tools and
 safe mode likewise do not override every managed policy hook. Local credentials,
 provider configuration, CLI bugs, and deliberately detached processes remain
-outside this adapter's guarantees. The script never requests a review, a fix, or
-publication, but use only trusted CLI installations and policies. It does not
+outside this adapter's guarantees. The script never requests a fix or publication,
+but use only trusted CLI installations and policies. It does not
 claim to enforce a sandbox around the entire provider executable.
 
 ### Configure a local installation

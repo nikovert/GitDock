@@ -97,6 +97,42 @@ public struct ReviewChatCitation: Codable, Equatable, Sendable {
     }
 }
 
+public enum ReviewChatTask: String, Codable, Sendable {
+    case review
+}
+
+/// Advisory comments only. Coordinates must be resolved against the exact PR snapshot before attachment.
+public struct ReviewAgentFinding: Codable, Equatable, Sendable {
+    public var body: String
+    public var path: String?
+    public var line: Int?
+    public var side: String?
+
+    public init(body: String, path: String? = nil, line: Int? = nil, side: String? = nil) {
+        self.body = body
+        self.path = path
+        self.line = line
+        self.side = side
+    }
+
+    public var isValid: Bool {
+        guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !body.contains("\0"), body.utf8.count <= 16_384 else { return false }
+        if let path {
+            guard !path.isEmpty, path.utf8.count <= 4096, !path.hasPrefix("/"), !path.contains("\0"),
+                  !path.split(separator: "/").contains("..") else { return false }
+        }
+        if let line, line <= 0 { return false }
+        if let side, side != "LEFT" && side != "RIGHT" { return false }
+        return true
+    }
+
+    public static func areValid(_ findings: [ReviewAgentFinding]) -> Bool {
+        findings.count <= 100 && findings.allSatisfy(\.isValid) &&
+            findings.reduce(0, { $0 + $1.body.utf8.count }) <= 262_144
+    }
+}
+
 public struct ReviewChatRequest: Codable, Sendable {
     public var accountLogin: String
     public var prURL: String
@@ -105,9 +141,10 @@ public struct ReviewChatRequest: Codable, Sendable {
     public var context: String
     public var policy: String
     public var messages: [ReviewChatMessage]
+    public var task: ReviewChatTask?
 
     public init(accountLogin: String, prURL: String, headSHA: String, question: String,
-                context: String, policy: String, messages: [ReviewChatMessage]) {
+                context: String, policy: String, messages: [ReviewChatMessage], task: ReviewChatTask? = nil) {
         self.accountLogin = accountLogin
         self.prURL = prURL
         self.headSHA = headSHA
@@ -115,6 +152,7 @@ public struct ReviewChatRequest: Codable, Sendable {
         self.context = context
         self.policy = policy
         self.messages = messages
+        self.task = task
     }
 }
 
@@ -123,12 +161,15 @@ public struct ReviewChatResponse: Codable, Equatable, Sendable {
     public var headSHA: String
     public var answer: String
     public var citations: [ReviewChatCitation]
+    public var findings: [ReviewAgentFinding]?
 
-    public init(prURL: String, headSHA: String, answer: String, citations: [ReviewChatCitation]) {
+    public init(prURL: String, headSHA: String, answer: String, citations: [ReviewChatCitation],
+                findings: [ReviewAgentFinding]? = nil) {
         self.prURL = prURL
         self.headSHA = headSHA
         self.answer = answer
         self.citations = citations
+        self.findings = findings
     }
 }
 
@@ -161,7 +202,7 @@ public enum ReviewChatError: Error, Equatable, Sendable, LocalizedError {
         case .outputLimitExceeded: return "The chat adapter exceeded its response limit and was stopped. Request a shorter answer."
         case .errorLimitExceeded: return "The chat adapter exceeded its diagnostic limit and was stopped. Check its logging settings."
         case .processFailed(let status): return "The chat adapter exited with status \(status). Check its local configuration and retry."
-        case .invalidResponse: return "The chat adapter returned an invalid response. Check its JSON protocol and citations."
+        case .invalidResponse: return "The chat adapter returned an invalid response. Check its JSON protocol, citations, and structured findings support for agent reviews."
         case .mismatchedResponse: return "The chat response belongs to another PR or revision. Reload the PR and ask again."
         }
     }

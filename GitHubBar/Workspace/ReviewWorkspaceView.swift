@@ -7,6 +7,7 @@ struct ReviewWorkspaceView: View {
     @Bindable var appModel: AppModel
     @State var review = ReviewWorkspaceModel()
     @State var layout = WorkspaceLayout()
+    @AppStorage("githubbar.chat.configuration") private var configurationData = Data()
     @State private var showsCleanup = false
     @State private var showsChatSettings = false
     @State private var showsPriorityAuthors = false
@@ -276,6 +277,9 @@ struct ReviewWorkspaceView: View {
             }
             HStack {
                 Button(contextOnly ? "Open PR" : "Review PR") { select(pr, openReview: true) }
+                if !contextOnly {
+                    Button("Agent review") { requestAgentReview(pr) }.disabled(review.reviewing || account == nil)
+                }
                 Spacer()
                 Link(destination: pr.url) { Image(systemName: "arrow.up.right.square") }.help("Open on GitHub")
             }.controlSize(.small)
@@ -283,6 +287,14 @@ struct ReviewWorkspaceView: View {
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
             .overlay { RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.18)) }
             .contextMenu { prActions(pr) }
+    }
+
+    private func requestAgentReview(_ pr: PullRequestPresentation) {
+        guard let key = try? PullRequestKey(url: pr.url) else { return }
+        let configuration = (try? JSONDecoder().decode(ReviewChatConfiguration.self, from: configurationData)) ?? ReviewChatConfiguration()
+        guard (try? configuration.validated()) != nil else { showsChatSettings = true; return }
+        review.requestAgentReview(for: key, account: account, configuration: configuration)
+        workspace.openPullRequest(pr)
     }
 
     private func identity(_ pr: PullRequestPresentation) -> ReviewIdentity {

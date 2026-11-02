@@ -52,7 +52,7 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
             ("threads-dark", 1380.0, .review, .threads, .darkAqua),
             ("manage-minimum", 900.0, .manage, .overview, .aqua),
         ] {
-            let host = NSHostingView(rootView: ReviewWorkspaceView(workspace: workspace, appModel: app, review: model, layout: WorkspaceLayout(defaults: defaults)))
+            let host = NSHostingView(rootView: ReviewWorkspaceView(workspace: workspace, appModel: app, review: model, layout: WorkspaceLayout(defaults: defaults)).defaultAppStorage(defaults))
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 800),
                 styleMask: [.titled], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
@@ -63,7 +63,10 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
             await model.loadTask?.value
             model.mode = mode; model.tab = tab; model.queue = .all
             model.editDraft {
-                $0.comments = [WorkspaceInlineDraft(path: "src/controllers/controller.py", line: 12, side: "RIGHT", body: "Could we include NaN in the fallback test too?")]
+                $0.comments = [WorkspaceInlineDraft(path: "src/controllers/controller.py", line: 12, side: "RIGHT", body: "Could we include NaN in the fallback test too?", agentName: "Codex", reviewRunID: UUID(), createdAt: .now)]
+                $0.generalComments = [WorkspaceGeneralDraft(body: "Add an integration test that restores valid input after the fallback.", agentName: "Codex", reviewRunID: UUID(), createdAt: .now)]
+                $0.lastAgentReview = WorkspaceAgentReviewReceipt(id: UUID(), provider: "Codex", completedAt: .now,
+                    summary: "Two actionable findings are saved as drafts for your review.", findingCount: 2, contextIncomplete: false)
                 $0.messages = [WorkspaceChatMessage(role: "assistant", text: "The fallback preserves the last valid output. Check **missing inputs** and test recovery.\n```python\nassert update(None) == previous_output\n```")]
             }
             model.splitDiff = name == "review-dark"
@@ -75,6 +78,25 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
             host.cacheDisplay(in: host.bounds, to: bitmap)
             let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
             try png.write(to: output.appendingPathComponent("workspace-\(name).png"))
+            window.contentView = nil
+            window.close()
+        }
+        let target = AgentFixTarget(identity: try XCTUnwrap(model.identity), request: try model.makeFixRequest())
+        for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+            let host = NSHostingView(rootView: AgentFixLaunchView(review: model, workspace: workspace, target: target, preferredAgent: .codex)
+                .environment(\.colorScheme, appearance == .aqua ? .light : .dark))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 680),
+                styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: appearance)
+            window.contentView = host
+            window.makeKeyAndOrderFront(nil)
+            try await Task.sleep(for: .milliseconds(80))
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            try png.write(to: output.appendingPathComponent("agent-fixes-\(name).png"))
             window.contentView = nil
             window.close()
         }

@@ -51,6 +51,11 @@ chat panel shows an example advisory answer.*
   conversation, code, local notes, and attached sessions.
 - **Inline drafts and review submission.** Select a line, save a comment locally,
   then explicitly post that draft or submit a batch Comment, Approval, or Request changes review to GitHub.
+- **Agent reviews become drafts.** Click **Agent review**, inspect findings in Threads
+  or the diff, then publish all or individual comments when ready.
+- **Fix comments with an agent.** **Have an agent make all fixes…** shows editable
+  instructions and starts Codex/Claude in a fresh PR worktree to assess comments,
+  apply fixes, test, and commit locally. Follow the session in Terminal.
 - **Pick up where you left off.** Mark files viewed, save a local review baseline,
   and use **Since my last review** to inspect subsequent changes.
 - **Drafts stay attached to the code you reviewed.** State is scoped to the account,
@@ -84,6 +89,12 @@ context. Choose Codex, Claude, or a custom adapter in the provider picker; **Tes
 connection** verifies a response. Chat stays advisory. Publish individual inline
 drafts or a batch Comment, Approve, or Request changes review with explicit workspace
 controls. Inline-only Comment reviews do not need a summary.
+
+Use **Agent review** to collect actionable findings as local drafts, or **Have an
+agent make all fixes…** to assess comments and start a fix/test/local-commit session.
+Both actions are explicit. See the [review workflow guide](docs/review-workspace.md).
+
+![Agent fixes sheet with editable default instructions and Codex/Claude selection](docs/assets/agent-fixes-light.png)
 
 The app no longer starts or polls Giles background review workers. Existing worker
 data is retained, and ordinary local terminal sessions remain available.
