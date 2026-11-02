@@ -178,6 +178,22 @@ public protocol ReviewChatServicing: Sendable {
               configuration: ReviewChatConfiguration) async throws -> ReviewChatResponse
 }
 
+/// Only these fixed recovery messages may cross the adapter's diagnostic boundary.
+/// Provider output and arbitrary adapter message strings are never displayed.
+public enum ReviewChatAdapterFailure: String, Codable, Equatable, Sendable {
+    case providerTimedOut, providerNotAuthenticated, providerFailed, invalidReviewResponse, adapterFailed
+
+    public var recoveryMessage: String {
+        switch self {
+        case .providerTimedOut: return "The provider timed out while preparing its response. Try a smaller PR or check the provider connection."
+        case .providerNotAuthenticated: return "The provider CLI is not signed in. Run codex login or claude auth login in Terminal for the selected provider, then retry."
+        case .providerFailed: return "The provider CLI failed. Check its local sign-in, service availability, and CLI version, then retry."
+        case .invalidReviewResponse: return "The agent did not return valid structured review findings. No drafts were imported. Retry the review or check custom adapter review support."
+        case .adapterFailed: return "The local adapter could not complete the request. Check its interpreter, CLI installation, and configuration."
+        }
+    }
+}
+
 public enum ReviewChatError: Error, Equatable, Sendable, LocalizedError {
     case invalidConfiguration(String)
     case launchFailed
@@ -188,6 +204,7 @@ public enum ReviewChatError: Error, Equatable, Sendable, LocalizedError {
     case outputLimitExceeded
     case errorLimitExceeded
     case processFailed(Int32)
+    case adapterFailed(ReviewChatAdapterFailure)
     case invalidResponse
     case mismatchedResponse
 
@@ -201,6 +218,7 @@ public enum ReviewChatError: Error, Equatable, Sendable, LocalizedError {
         case .requestLimitExceeded: return "The chat request is too large. Reduce the context or conversation and retry."
         case .outputLimitExceeded: return "The chat adapter exceeded its response limit and was stopped. Request a shorter answer."
         case .errorLimitExceeded: return "The chat adapter exceeded its diagnostic limit and was stopped. Check its logging settings."
+        case .adapterFailed(let failure): return failure.recoveryMessage
         case .processFailed(let status): return "The chat adapter exited with status \(status). Check its local configuration and retry."
         case .invalidResponse: return "The chat adapter returned an invalid response. Check its JSON protocol, citations, and structured findings support for agent reviews."
         case .mismatchedResponse: return "The chat response belongs to another PR or revision. Reload the PR and ask again."

@@ -99,6 +99,7 @@ public struct ReviewChatClient: ReviewChatServicing {
             var errorClosed = false
             var output = Data()
             var errorBytes = 0
+            var diagnostics = Data()
             var buffer = [UInt8](repeating: 0, count: 8192)
 
             while true {
@@ -140,6 +141,7 @@ public struct ReviewChatClient: ReviewChatServicing {
                             throw ReviewChatError.errorLimitExceeded
                         }
                         errorBytes += count
+                        diagnostics.append(contentsOf: buffer.prefix(count))
                         madeProgress = true
                     } else if count == 0 { errorClosed = true }
                 }
@@ -148,6 +150,7 @@ public struct ReviewChatClient: ReviewChatServicing {
                 if !madeProgress { try await Task.sleep(for: .milliseconds(10)) }
             }
             guard process.terminationStatus == 0 else {
+                if let failure = Self.knownAdapterFailure(diagnostics) { throw ReviewChatError.adapterFailed(failure) }
                 throw ReviewChatError.processFailed(process.terminationStatus)
             }
             guard inputOffset == input.count else { throw ReviewChatError.inputClosed }
@@ -156,6 +159,18 @@ public struct ReviewChatClient: ReviewChatServicing {
             await Self.stop(process, processGroup: ownedProcessGroup)
             throw error
         }
+    }
+
+    private static func knownAdapterFailure(_ data: Data) -> ReviewChatAdapterFailure? {
+        let prefix = "GITHUBBAR_ADAPTER_ERROR_V1:"
+        for line in String(decoding: data, as: UTF8.self).split(separator: "\n").reversed() where line.hasPrefix(prefix) {
+            let payload = Data(line.dropFirst(prefix.count).utf8)
+            guard payload.count <= 256,
+                  let record = try? JSONDecoder().decode([String: String].self, from: payload),
+                  record.count == 1, let code = record["code"] else { return nil }
+            return ReviewChatAdapterFailure(rawValue: code)
+        }
+        return nil
     }
 
     private static func stop(_ process: Process, processGroup: Int32?) async {

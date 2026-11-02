@@ -86,6 +86,30 @@ final class ReviewChatTests: XCTestCase, @unchecked Sendable {
         XCTAssertFalse(ReviewChatError.processFailed(23).localizedDescription.contains("SECRET"))
     }
 
+    func testKnownAdapterFailureShowsSafeRecoveryWithoutRawDiagnostics() async throws {
+        let fixture = try fixture(#"""
+        print STDERR "SECRET provider output\n";
+        print STDERR 'GITHUBBAR_ADAPTER_ERROR_V1:{"code":"providerTimedOut"}';
+        print STDERR "\n"; exit 1;
+        """#)
+        defer { fixture.remove() }
+        do {
+            _ = try await ReviewChatClient().send(request, configuration: fixture.configuration)
+            XCTFail("Expected provider timeout")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("provider timed out"), error.localizedDescription)
+            XCTAssertFalse(error.localizedDescription.contains("SECRET"))
+        }
+    }
+
+    func testUnknownAdapterFailureCannotInjectAnErrorMessage() async throws {
+        let fixture = try fixture(#"""
+        print STDERR 'GITHUBBAR_ADAPTER_ERROR_V1:{"code":"SECRET","message":"PRIVATE"}'; exit 1;
+        """#)
+        defer { fixture.remove() }
+        await assertError(.processFailed(1), fixture: fixture)
+    }
+
     func testExecutableThatCannotLaunchReportsRecoverableError() async throws {
         let fixture = try fixture("exit 0;")
         defer { fixture.remove() }

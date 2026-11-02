@@ -122,8 +122,8 @@ struct ReviewChatSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Connect a chat agent").font(.title2.bold())
-            Text("Use your existing local Codex or Claude account, or a compatible custom adapter.")
+            Text("Connect a chat and review agent").font(.title2.bold())
+            Text("This provider is used for workspace chat and the PR’s Agent review button. Use your existing local Codex or Claude account, or a compatible custom adapter.")
                 .foregroundStyle(.secondary)
             Picker("Provider", selection: Binding(get: { provider }, set: { value in
                 provider = value; status = nil
@@ -142,7 +142,7 @@ struct ReviewChatSettingsView: View {
                 Label(detection.executable(for: provider)?.path ?? "\(provider.displayName) is not installed in a known executable location.",
                       systemImage: detection.executable(for: provider) == nil ? "exclamationmark.triangle" : "checkmark.circle")
                     .font(.caption).textSelection(.enabled)
-                Text("Sign in first from Terminal using \(provider == .codex ? "codex login" : "claude auth login"). The connection test sends a small request and may use your provider allowance.")
+                Text("Sign in first from Terminal using \(provider == .codex ? "codex login" : "claude auth login"). Test connection sends a small chat request; a full PR review takes longer and also requires structured findings. Tests and reviews may use your provider allowance.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let guide = Bundle.main.url(forResource: "agent-chat", withExtension: "md") {

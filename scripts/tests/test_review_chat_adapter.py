@@ -221,12 +221,27 @@ print(json.dumps({'argv': sys.argv[1:], 'prompt': sys.stdin.read(),
                 self.assertIn(b"limit", result.stderr.lower())
                 self.assertLess(len(result.stderr), 1024)
 
+    def test_logged_out_provider_reports_login_recovery_without_echoing_output(self):
+        self.fake("import sys; print('Not logged in · Please run /login');sys.exit(1)")
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'GITHUBBAR_ADAPTER_ERROR_V1:{"code":"providerNotAuthenticated"}', result.stderr)
+        self.assertEqual(result.stdout, b'')
+
+    def test_failed_provider_reports_only_a_known_machine_code(self):
+        self.fake("import sys; print('SECRET',file=sys.stderr);sys.exit(7)")
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'GITHUBBAR_ADAPTER_ERROR_V1:{"code":"providerFailed"}', result.stderr)
+        self.assertNotIn(b'SECRET', result.stderr)
+
     def test_timeout_reaps_backend_that_ignores_term(self):
         pid_file = self.directory / "pid"
         self.fake(f"import os, signal, time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\nopen({str(pid_file)!r}, 'w').write(str(os.getpid()))\ntime.sleep(30)")
         result = self.run_adapter(extra=("--timeout", "0.3"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(b"timed out", result.stderr)
+        self.assertIn(b'GITHUBBAR_ADAPTER_ERROR_V1:{"code":"providerTimedOut"}', result.stderr)
         self.assert_gone(int(pid_file.read_text()))
 
     def test_termination_reaps_backend(self):

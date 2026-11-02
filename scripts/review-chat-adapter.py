@@ -25,6 +25,10 @@ FINDING_TOTAL_BODY_LIMIT = 262_144
 class AdapterError(Exception):
     """A diagnostic that is safe to show without exposing provider output."""
 
+    def __init__(self, message, code="adapterFailed"):
+        super().__init__(message)
+        self.code = code
+
 
 def read_request():
     raw = sys.stdin.buffer.read(REQUEST_LIMIT + 1)
@@ -103,7 +107,7 @@ def collect_answer(child, timeout):
         deadline = time.monotonic() + timeout
         while selector.get_map() or child.poll() is None:
             if time.monotonic() >= deadline:
-                raise AdapterError("Provider timed out. Retry with less context or check local login.")
+                raise AdapterError("Provider timed out. Retry with less context or check local login.", "providerTimedOut")
             for key, _ in selector.select(timeout=0.05):
                 chunk = os.read(key.fileobj.fileno(), 8192)
                 if not chunk:
@@ -117,7 +121,9 @@ def collect_answer(child, timeout):
                     if error_bytes > ERROR_LIMIT:
                         raise AdapterError("Provider diagnostics exceeded the byte limit. Check local CLI settings.")
         if child.wait() != 0:
-            raise AdapterError("Provider failed. Check local login and CLI version, then retry.")
+            if output.decode("utf-8", errors="replace").strip().lower().startswith("not logged in"):
+                raise AdapterError("Provider is not signed in. Sign in using its CLI, then retry.", "providerNotAuthenticated")
+            raise AdapterError("Provider failed. Check local login and CLI version, then retry.", "providerFailed")
         try:
             answer = output.decode("utf-8").strip()
         except UnicodeDecodeError:
@@ -188,7 +194,7 @@ def parse_review(text):
                              if key in finding and finding[key] is not None})
         return answer, citations, findings
     except (ValueError, KeyError, TypeError, AttributeError, RecursionError, UnicodeError):
-        raise AdapterError("Invalid agent review response. The adapter requires structured findings (including an explicit empty array); check provider or custom adapter support and retry.") from None
+        raise AdapterError("Invalid agent review response. The adapter requires structured findings (including an explicit empty array); check provider or custom adapter support and retry.", "invalidReviewResponse") from None
 
 
 def interrupted(_signal, _frame):
@@ -254,6 +260,7 @@ if __name__ == "__main__":
         main()
     except AdapterError as error:
         print(str(error), file=sys.stderr)
+        print("GITHUBBAR_ADAPTER_ERROR_V1:" + json.dumps({"code": error.code}, separators=(",", ":")), file=sys.stderr)
         sys.exit(1)
     except (OSError, ValueError):
         print("Chat adapter failed. Check the interpreter, CLI installation, and local login.", file=sys.stderr)

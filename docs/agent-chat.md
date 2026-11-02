@@ -171,7 +171,13 @@ environment, when present. `PATH` is replaced with `/usr/bin:/bin:/usr/sbin:/sbi
 Everything else is omitted, including GitHub/provider tokens, cloud credentials,
 SSH agent sockets, dynamic-loader variables, and review-worker bridge variables.
 No GitHub credential is placed in the request. Raw stderr and decoding errors are
-never surfaced to the UI; diagnostic bytes are counted and discarded.
+never surfaced to the UI. Stderr is bounded and retained only in memory until the
+exchange finishes. On a nonzero exit, adapters may emit a line such as
+`GITHUBBAR_ADAPTER_ERROR_V1:{"code":"providerTimedOut"}`. The client accepts only
+known codes (`providerTimedOut`, `providerNotAuthenticated`, `providerFailed`,
+`invalidReviewResponse`, `adapterFailed`) and displays a fixed recovery message.
+Unknown codes, additional message fields, or malformed records fall back to the
+exit-status error. Arbitrary stderr is never displayed or saved.
 
 Chat does not call GitHub APIs, enqueue reviews, submit comments, apply fixes, or
 modify repository files. The configured executable is trusted local code, not an
@@ -310,6 +316,15 @@ For another checkout, replace every `/private/tmp/githubbar-pr-navigation` prefi
 with that checkout's absolute path. If the CLIs or Python are installed elsewhere,
 replace their paths too. Enter each argument separately (or use the UI's JSON
 array field); do not paste the shell command above into the executable field.
+
+The provider saved in **Settings → Workspace chat and reviews → Configure chat
+agent…** is shared by chat and the PR's **Agent review** button. There is no
+separate review-worker setup. **Test connection** checks a small chat exchange;
+a PR review also needs a structured findings response and may take longer.
+
+A logged-out Claude CLI reports a sign-in error; run `claude auth login` in Terminal
+before testing again. Provider tokens from the launching shell are intentionally
+not inherited; use the CLI's stored sign-in.
 
 An unknown flag or login failure returns a recoverable adapter failure. Check
 `codex exec --help`, `codex --help`, or `claude --help` locally and sign in from a

@@ -27,8 +27,8 @@ struct SettingsView: View {
                     PinnedRepositoriesSettingsView(appModel: appModel)
                 }
 
-                SettingsSection(title: "Workspace chat", systemImage: "bubble.left.and.bubble.right") {
-                    Text("Connect a local agent for PR questions and cited answers in the review workspace.")
+                SettingsSection(title: "Workspace chat and reviews", systemImage: "bubble.left.and.bubble.right") {
+                    Text("Choose the shared provider for PR questions, cited answers, and Agent review drafts.")
                         .font(.caption).foregroundStyle(.secondary)
                     Button("Configure chat agent…") { showsChatSettings = true }
                 }
