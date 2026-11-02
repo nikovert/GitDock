@@ -317,6 +317,59 @@ final class PRReviewTests: XCTestCase, @unchecked Sendable {
         XCTAssertTrue(writes.isEmpty)
     }
 
+    func testInlineOnlyCommentReviewIsAcceptedButEmptyReviewAndChangesWithoutSummaryAreRejected() async throws {
+        let transport = ReviewFixtureTransport()
+        let inline = PRReviewDraftComment(path: "a.swift", line: 2, side: .right, body: "Check this")
+        try await client(transport).submit(key: key, accountLogin: "alice", headSHA: ReviewFixtureTransport.head,
+            baseSHA: ReviewFixtureTransport.base, event: .comment, body: "", comments: [inline])
+        let writes = await transport.writes
+        XCTAssertEqual(writes.count, 1)
+        for event in [PRReviewEvent.comment, .requestChanges] {
+            do {
+                try await client(transport).submit(key: key, accountLogin: "alice", headSHA: ReviewFixtureTransport.head,
+                    baseSHA: ReviewFixtureTransport.base, event: event, body: "  ", comments: event == .comment ? [] : [inline])
+                XCTFail("accepted review without required content")
+            } catch { XCTAssertEqual(error as? PRReviewError, .invalidReview) }
+        }
+    }
+
+    func testAmbiguousSuccessfulHTTPResponseIsNotConfirmationAndIsNeverRetried() async throws {
+        for response in ["{}", "not JSON", #"{"id":9,"commit_id":"wrong","state":"APPROVED"}"#,
+                         "{\"id\":9,\"commit_id\":\"\(ReviewFixtureTransport.head)\",\"state\":\"PENDING\"}"] {
+            let transport = ReviewFixtureTransport()
+            await transport.setPostBody(response)
+            do {
+                try await client(transport).submit(key: key, accountLogin: "alice", headSHA: ReviewFixtureTransport.head,
+                    baseSHA: ReviewFixtureTransport.base, event: .approve, body: "", comments: [])
+                XCTFail("accepted ambiguous response")
+            } catch { XCTAssertEqual(error as? PRReviewError, .invalidResponse) }
+            let writes = await transport.writes
+            XCTAssertEqual(writes.count, 1)
+        }
+    }
+
+    func testSubmissionReceiptConfirmsCommitAndDecision() async throws {
+        let receipt = try await client(ReviewFixtureTransport()).submit(key: key, accountLogin: "alice",
+            headSHA: ReviewFixtureTransport.head, baseSHA: ReviewFixtureTransport.base,
+            event: .approve, body: "", comments: [])
+        XCTAssertEqual(receipt.id, 42)
+        XCTAssertEqual(receipt.headSHA, ReviewFixtureTransport.head)
+        XCTAssertEqual(receipt.event, .approve)
+    }
+
+    func testInlineCommentsDecodeSideAndOutdatedCoordinatesWithoutGuessing() async throws {
+        let transport = ReviewFixtureTransport()
+        await transport.set("/pulls/7/comments?per_page=100&page=1", json: #"[{"id":1,"body":"deleted","path":"a.swift","line":2,"side":"LEFT"},{"id":2,"body":"outdated","path":"a.swift","line":null,"original_line":2,"side":"RIGHT"}]"#)
+        let snapshot = try await client(transport).load(key: key, accountLogin: "alice", sinceSHA: nil)
+        let left = try XCTUnwrap(snapshot.comments.first { $0.id == "inline:1" })
+        XCTAssertEqual(left.side, .left)
+        XCTAssertFalse(left.isOutdated)
+        let old = try XCTUnwrap(snapshot.comments.first { $0.id == "inline:2" })
+        XCTAssertTrue(old.isOutdated)
+        XCTAssertNil(old.line)
+        XCTAssertEqual(old.originalLine, 2)
+    }
+
     private func client(_ transport: ReviewFixtureTransport) -> PRReviewClient {
         PRReviewClient(accountConnection: ReviewFixtureAccount(), transport: transport)
     }
@@ -351,6 +404,8 @@ private actor ReviewFixtureTransport: PRReviewTransport {
     private var movingHead = false
     private var detailReads = 0
     private var postStatus = 200
+    private var postBody: String?
+    func setPostBody(_ value: String) { postBody = value }
 
     func set(_ suffix: String, json: String, next: Bool = false, status: Int = 200) {
         routes[suffix] = .init(statusCode: status, headers: next ? ["Link": "<https://api.github.com/ignored>; rel=\"next\""] : [:], data: Data(json.utf8))
@@ -381,6 +436,14 @@ private actor ReviewFixtureTransport: PRReviewTransport {
     }
     func post(path: String, account: ResolvedAccount, body: Data) async throws -> GitHubTransportResponse {
         writes.append(Write(path: path, login: account.login, body: body))
-        return .init(statusCode: postStatus, headers: [:], data: Data("{}".utf8))
+        return .init(statusCode: postStatus, headers: [:], data: Data((postBody ?? "{\"id\":42,\"commit_id\":\"\(Self.head)\",\"state\":\"\(reviewState(body))\"}").utf8))
+    }
+    private func reviewState(_ body: Data) -> String {
+        let payload = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
+        switch payload?["event"] as? String {
+        case "APPROVE": return "APPROVED"
+        case "REQUEST_CHANGES": return "CHANGES_REQUESTED"
+        default: return "COMMENTED"
+        }
     }
 }

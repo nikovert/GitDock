@@ -1,5 +1,10 @@
 # Agent reviews
 
+> Legacy integration: the current app does not launch, poll, configure, or request
+> background worker reviews. This document is retained for the compatible legacy
+> CLI protocol and existing external clients. Local Codex/Claude chat and explicit
+> GitHub review posting are described in [Review workspace](review-workspace.md).
+
 GitHubBar exchanges local review requests and results with any compatible review worker
 through `GitHubBarWorkspaceCLI agent`. The CLI is bundled in
 `GitHubBar.app/Contents/MacOS` in validation, stable, and Xcode builds. Review workers

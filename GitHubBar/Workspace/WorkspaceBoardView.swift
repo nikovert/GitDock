@@ -21,7 +21,7 @@ struct WorkspaceBoardView: View {
         return Array(Set(result)).sorted {
             if let lhs = priorityContext(for: $0), let rhs = priorityContext(for: $1), lhs != rhs {
                 return WorkspaceReviewContext.precedes(lhs, rhs, in: workspace.document,
-                    priorityAuthors: workspace.reviewDocument.priorityAuthors)
+                    priorityAuthors: workspace.priorityAuthors)
             }
             return $0.key.description < $1.key.description
         }
@@ -53,8 +53,6 @@ struct WorkspaceBoardView: View {
                         systemImage: "tray.full",
                         description: Text("Choose a PR or stack to set local status and manage agents.")
                     )
-                    WorkspaceAgentReviewView(workspace: workspace, subject: nil, pullRequest: nil)
-                        .padding()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -150,7 +148,7 @@ struct WorkspaceBoardView: View {
         let members = subject.isStack ? details.members : [details.primary]
         return members.map { workspace.reviewContext(for: $0) }.sorted {
             WorkspaceReviewContext.precedes($0, $1, in: workspace.document,
-                priorityAuthors: workspace.reviewDocument.priorityAuthors)
+                priorityAuthors: workspace.priorityAuthors)
         }.first
     }
 
@@ -228,14 +226,7 @@ struct WorkspaceDetailView: View {
                                         Link("#\(member.number) \(member.title)", destination: member.url)
                                         Text("By \(member.author?.displayName ?? "unknown") · Requested: \(requestedReviewerSummary(for: member))")
                                             .font(.caption).foregroundStyle(.secondary)
-                                        WorkspaceReviewRequestView(workspace: workspace, pullRequest: member)
-                                        if let key = try? PullRequestKey(url: member.url) {
-                                            DisclosureGroup("PR policy overrides") {
-                                                WorkspaceReviewPolicyControls(
-                                                    workspace: workspace, subject: .pullRequest(key)
-                                                )
-                                            }
-                                        }
+
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 }
@@ -247,10 +238,6 @@ struct WorkspaceDetailView: View {
                     Text("GitHub PR details are unavailable until the next refresh.")
                         .foregroundStyle(.secondary)
                 }
-
-                WorkspaceAgentReviewView(
-                    workspace: workspace, subject: subject, pullRequest: details?.primary
-                )
 
                 GroupBox("Priority and status") {
                     VStack(alignment: .leading, spacing: 10) {
@@ -512,7 +499,7 @@ func requestedReviewerSummary(for pullRequest: PullRequestPresentation) -> Strin
     return requested.map(\.displayName).joined(separator: ", ")
 }
 
-private func reviewStatusSummary(for pullRequest: PullRequestPresentation) -> String {
+func reviewStatusSummary(for pullRequest: PullRequestPresentation) -> String {
     if pullRequest.isDraft { return "Draft" }
     switch pullRequest.reviewDecision {
     case .approved: return "Approved"

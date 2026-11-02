@@ -53,7 +53,7 @@ The pull request at GitHub Stack position 1.
 _Avoid_: Parent PR, first change
 
 **Review decision**:
-GitHub's aggregate review status for an Authored pull request: approved, changes requested, review required, or absent.
+GitHub's aggregate review status for an Authored pull request: approved, changes requested, review required, or absent. When GitHub omits the aggregate, GitHubBar may derive approval from complete eligible review history and verified active branch requirements. Outstanding review requests do not require every requested reviewer to approve; conflicts and CI are separate from review approval.
 _Avoid_: Review status, reviewer state
 
 **Outstanding review request**:

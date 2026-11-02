@@ -35,7 +35,7 @@ final class WorkspaceWindowController {
         )
         window.title = "GitHubBar Workspace"
         window.isReleasedWhenClosed = false
-        window.contentMinSize = NSSize(width: 1100, height: 700)
+        window.contentMinSize = NSSize(width: 900, height: 650)
         window.contentView = NSHostingView(
             rootView: ReviewWorkspaceView(workspace: workspaceModel, appModel: appModel)
         )

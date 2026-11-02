@@ -15,12 +15,39 @@ translates its answer back into the response below.
 
 ## Configuration
 
-`ReviewChatConfiguration` has `displayName`, `executable`, `arguments` (an array of
-literal strings), and `workingDirectory`. Defaults are empty, so an unconfigured
-adapter cannot launch. `validated()` requires an existing absolute executable
-path and an existing absolute directory. Display names may be empty and are
-limited to 200 UTF-8 bytes. Arguments are limited to 256 entries and 64 KiB total;
-settings cannot contain NUL characters.
+In chat settings, choose **Codex**, **Claude**, or **Custom adapter**. GitHubBar
+looks for executable CLIs in PATH and standard Homebrew, local-user, and system
+locations without launching them. On first setup it prefers Codex when both are
+installed. Saving remembers your provider; reopening settings keeps that choice.
+Codex and Claude automatically use the bundled Python adapter. Sign into the CLI
+from Terminal before connecting (`codex login` or `claude auth login`).
+
+**Test connection** sends a small synthetic question, with no PR context, through
+the same JSON client used by chat. It may use your provider allowance. A valid
+answer confirms the protocol and local sign-in; checking executable paths alone
+does not. Stop test and closing settings cancel the request. Failures remain in
+settings with recovery guidance; no raw provider diagnostics are displayed.
+
+Custom adapter exposes the executable, literal arguments, display name, and
+working directory fields. `ReviewChatConfiguration` stores those values plus a
+`provider` (`codex`, `claude`, or `custom`). Existing configurations without that
+key remain readable: bundled `--provider` arguments identify their provider,
+while other adapters remain custom. The wire request/response is unchanged.
+Defaults are empty, so an unconfigured adapter cannot launch. `validated()`
+requires an existing absolute executable path and an existing absolute directory.
+Display names may be empty and are limited to 200 UTF-8 bytes. Arguments are limited
+to 256 entries and 64 KiB total; settings cannot contain NUL characters.
+
+Chat uses a multiline composer: **Enter** asks the question and **Control-Enter**
+inserts a newline. Return during input-method composition commits the composition
+without sending. Blank, pending, or unavailable actions cannot submit, and held
+Return keys do not repeat sends. The same composer serves review text and inline
+comments. Answers show inline Markdown formatting and links, with selectable,
+monospaced fenced code blocks. Click citation buttons to navigate the loaded diff.
+Pending requests have a working indicator and Stop action. Failed questions stay
+available for retry without duplicating their conversation entry. Partial context
+is called out next to the PR context. Chat settings and policy remain separate
+from review-worker permissions.
 
 The client launches the executable directly. It performs no shell interpolation,
 PATH lookup, `~` expansion, or argument splitting. For example, `$(command)` in an

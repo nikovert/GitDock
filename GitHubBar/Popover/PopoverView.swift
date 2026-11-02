@@ -3,7 +3,7 @@ import GitHubBarCore
 import SwiftUI
 
 struct PopoverView: View {
-    static let preferredWidth: CGFloat = 364
+    static let preferredWidth: CGFloat = 440
     static let fallbackHeight: CGFloat = 700
     static let minimumResponsiveHeight: CGFloat = 640
     static let maximumHeight: CGFloat = 900
@@ -20,23 +20,27 @@ struct PopoverView: View {
     @Bindable var appModel: AppModel
     let actions: AppActions
     let avatarImageCache: AvatarImageCache
+    let workspaceModel: WorkspaceModel?
 
     init(
         appModel: AppModel,
         actions: AppActions = AppActions(),
-        avatarImageCache: AvatarImageCache
+        avatarImageCache: AvatarImageCache,
+        workspaceModel: WorkspaceModel? = nil
     ) {
         self.appModel = appModel
         self.actions = actions
         self.avatarImageCache = avatarImageCache
+        self.workspaceModel = workspaceModel
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            MenuActionRow(title: "Search PRs…", systemImage: "magnifyingglass", shortcut: "⌘ F") { actions.openSearch() }
             insetDivider
             if isConnected {
-                RepositoryScopeControl(appModel: appModel)
+                RepositoryScopeControl(appModel: appModel, onManage: actions.openSettings)
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         if isInitialLoading {
@@ -46,25 +50,29 @@ struct PopoverView: View {
                            !accessCoverage.isComplete {
                             AccessCoverageBanner(accessCoverage: accessCoverage)
                         }
-                        if !isInitialLoading {
-                            WorkloadSection(
-                                title: "Waiting for my review",
-                                pullRequests: appModel.state.needsYourReview,
-                                emptyMessage: "Nothing is waiting for your review.",
-                                showsRepository: showsRepositoryInRows
-                            )
-                            WorkloadSection(
-                                title: "My PRs",
-                                pullRequests: appModel.state.authoredPullRequests,
-                                emptyMessage: "You have no open pull requests.",
-                                showsRepository: showsRepositoryInRows,
-                                showsBottomDivider: false
-                            )
+                        if appModel.state.repositoryScope == .pinned, appModel.state.pinnedRepositories.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("No pinned repositories").font(.headline)
+                                Text("Choose the repositories you care about on this Mac.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Button("Choose repositories in Settings…") { actions.openSettings() }
+                            }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 20)
+                        } else if !isInitialLoading {
+                            workloadSection(title: "Needs your review", pullRequests: appModel.state.needsYourReview,
+                                            emptyMessage: "Nothing is waiting for your review.")
+                            ForEach(AuthoredPullRequestSection.allCases, id: \.self) { section in
+                                workloadSection(title: sectionTitle(section), pullRequests: appModel.state.authoredPullRequests.filter {
+                                    $0.authoredSection == section
+                                }, emptyMessage: "No pull requests in this section.")
+                            }
+                            let legacy = appModel.state.authoredPullRequests.filter { $0.authoredSection == nil }
+                            if !legacy.isEmpty {
+                                workloadSection(title: "My PRs", pullRequests: legacy, emptyMessage: "")
+                            }
                         }
                     }
                     .padding(.horizontal, 18)
                 }
-                .id(repositoryScopeScrollIdentity)
             } else {
                 AccountConnectionView(
                     accountConnection: appModel.state.accountConnection,
@@ -77,6 +85,22 @@ struct PopoverView: View {
         .frame(minHeight: 470, idealHeight: Self.fallbackHeight, maxHeight: Self.maximumHeight)
         .background(VisualEffectBackground())
         .environmentObject(avatarImageCache)
+    }
+
+    private func workloadSection(title: String, pullRequests: [PullRequestPresentation], emptyMessage: String) -> some View {
+        WorkloadSection(title: title, pullRequests: pullRequests, emptyMessage: emptyMessage,
+                        showsRepository: showsRepositoryInRows, stacks: appModel.state.pullRequestStacks,
+                        actions: actions, workspaceModel: workspaceModel)
+    }
+
+    private func sectionTitle(_ section: AuthoredPullRequestSection) -> String {
+        switch section {
+        case .returnedToYou: "Returned to you"
+        case .needsReviewers: "Needs reviewers"
+        case .waitingForReviewers: "Waiting for reviewers"
+        case .approved: "Approved"
+        case .drafts: "Drafts"
+        }
     }
 
     private var header: some View {
@@ -108,6 +132,7 @@ struct PopoverView: View {
     private var footer: some View {
         VStack(spacing: 0) {
             Divider().padding(.horizontal, 18)
+            MenuActionRow(title: "Open Workspace", systemImage: "rectangle.split.3x1") { actions.openWorkspace(nil) }
             if isConnected {
                 MenuActionRow(title: "Refresh", systemImage: "arrow.clockwise", shortcut: "⌘ R") {
                     appModel.send(.manualRefresh)
@@ -206,19 +231,6 @@ struct PopoverView: View {
         return true
     }
 
-    private var repositoryScopeScrollIdentity: RepositoryScopeScrollIdentity {
-        switch appModel.state.repositoryScope {
-        case .all:
-            .all
-        case .pinned:
-            .pinned
-        }
-    }
-}
-
-private enum RepositoryScopeScrollIdentity: Hashable {
-    case all
-    case pinned
 }
 
 private struct InitialWorkloadLoadingView: View {

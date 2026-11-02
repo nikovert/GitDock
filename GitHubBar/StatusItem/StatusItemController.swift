@@ -1,109 +1,104 @@
 import AppKit
 import GitHubBarCore
+import SwiftUI
 
 @MainActor
-final class StatusItemController: NSObject {
+final class StatusItemController: NSObject, NSPopoverDelegate {
     let appModel: AppModel
     let actions: AppActions
     let workspaceModel: WorkspaceModel
     let avatarImageCache: AvatarImageCache
     let statusItem: NSStatusItem
-    let statusMenu = NSMenu()
-    var isStatusMenuOpen = false
-    var highlightedStatusMenuItem: NSMenuItem?
-    var statusMenuKeyMonitor: Any?
-    var registeredShortcut: GitHubBarShortcut?
-    var pendingRepositoryScope: RepositoryScope?
+    let popover = NSPopover()
+    private(set) var registeredShortcut: GitHubBarShortcut?
     private var avatarCacheAccountLogin: String?
     private let searchModel: PRSearchModel?
-    private let reviewAgentModel: ReviewAgentModel?
+    private var keyMonitor: Any?
+
+    var isStatusMenuOpen: Bool { popover.isShown }
 
     init(
         appModel: AppModel,
         actions: AppActions = AppActions(),
         workspaceModel: WorkspaceModel,
         avatarImageCache: AvatarImageCache,
-        searchModel: PRSearchModel? = nil,
-        reviewAgentModel: ReviewAgentModel? = nil
+        searchModel: PRSearchModel? = nil
     ) {
         self.appModel = appModel
         self.actions = actions
         self.workspaceModel = workspaceModel
         self.avatarImageCache = avatarImageCache
         self.searchModel = searchModel
-        self.reviewAgentModel = reviewAgentModel
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
-
-        configureStatusItem()
-        apply(appModel.state)
-
-        appModel.onStateChange = { [weak self] state in
-            self?.apply(state)
-        }
-    }
-
-    private func configureStatusItem() {
-        guard let button = statusItem.button else { return }
-        button.imagePosition = .imageOnly
-        button.imageScaling = .scaleNone
         configureStatusMenu()
+        apply(appModel.state)
+        appModel.onStateChange = { [weak self] state in self?.apply(state) }
     }
 
     private func apply(_ state: AppPresentationState) {
         workspaceModel.updateWorkload(state)
         searchModel?.updateWorkload(state)
-        let reviewLogin = connectedAccountLogin(in: state)
-        Task { [weak reviewAgentModel] in await reviewAgentModel?.updateMonitoredAccount(reviewLogin) }
-        guard let button = statusItem.button else { return }
-        let accountLogin = connectedAccountLogin(in: state)
-        if avatarCacheAccountLogin != accountLogin {
+        let login: String?
+        if case let .connected(value, _) = state.accountConnection { login = value } else { login = nil }
+        if avatarCacheAccountLogin != login {
             avatarImageCache.removeAll()
-            avatarCacheAccountLogin = accountLogin
+            avatarCacheAccountLogin = login
         }
-        let avatarURLs = avatarURLs(in: state)
-        Task {
-            await avatarImageCache.preload(avatarURLs)
+        let urls = (state.needsYourReview + state.authoredPullRequests).flatMap { pullRequest in
+            pullRequest.reviewers.compactMap(\.avatarURL) + [pullRequest.author?.avatarURL].compactMap { $0 }
         }
-        button.image = StatusIconRenderer.image(reviewCount: state.reviewCount)
-        button.setAccessibilityTitle("GitHubBar. \(state.reviewCountAccessibilityLabel).")
-        button.toolTip = "GitHubBar — \(state.reviewCountAccessibilityLabel)"
-        updateStatusMenu(for: state)
-    }
-
-    private func avatarURLs(in state: AppPresentationState) -> [URL] {
-        (state.needsYourReview + state.authoredPullRequests).flatMap { pullRequest in
-            var urls = pullRequest.reviewers.compactMap(\.avatarURL)
-            if let authorURL = pullRequest.author?.avatarURL {
-                urls.append(authorURL)
-            }
-            return urls
-        }
-    }
-
-    private func connectedAccountLogin(in state: AppPresentationState) -> String? {
-        guard case let .connected(login, _) = state.accountConnection else { return nil }
-        return login
+        Task { await avatarImageCache.preload(urls) }
+        statusItem.button?.image = StatusIconRenderer.image(reviewCount: state.reviewCount)
+        statusItem.button?.setAccessibilityTitle("GitHubBar. \(state.reviewCountAccessibilityLabel).")
+        statusItem.button?.toolTip = "GitHubBar — \(state.reviewCountAccessibilityLabel)"
+        // The existing SwiftUI tree observes AppModel. Never replace it during refresh.
     }
 
     func showMenu() {
-        let avatarURLs = avatarURLs(in: appModel.state)
-        Task {
-            await avatarImageCache.preload(avatarURLs)
-        }
-        statusItem.button?.performClick(nil)
+        guard !popover.isShown, let button = statusItem.button else { return }
+        let height = PopoverView.resolvedHeight(forVisibleScreenHeight: button.window?.screen?.visibleFrame.height)
+        popover.contentSize = NSSize(width: PopoverView.preferredWidth, height: height)
+        NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
-    func toggleMenu() {
-        if isStatusMenuOpen {
-            statusMenu.cancelTracking()
-        } else {
-            showMenu()
-        }
+    @objc func toggleMenu() {
+        if popover.isShown { closeMenu() } else { showMenu() }
     }
 
-    func setRegisteredShortcut(_ shortcut: GitHubBarShortcut) {
-        registeredShortcut = shortcut
-        rebuildStatusMenu()
+    func closeMenu() { popover.performClose(nil) }
+
+    func setRegisteredShortcut(_ shortcut: GitHubBarShortcut) { registeredShortcut = shortcut }
+
+    /// Kept for workspace callers; observation updates the persistent popover content.
+    func rebuildStatusMenu() {}
+
+    func popoverDidShow(_ notification: Notification) {
+        appModel.send(.setWorkloadSurfaceOpen(true))
+        installKeyMonitor()
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor); self.keyMonitor = nil }
+        appModel.send(.setWorkloadSurfaceOpen(false))
+    }
+
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.popover.isShown else { return event }
+            if event.keyCode == 53 { self.closeMenu(); return nil }
+            guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else { return event }
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "r": self.appModel.send(.manualRefresh)
+            case "f": self.closeMenu(); self.actions.openSearch()
+            case ",": self.closeMenu(); self.actions.openSettings()
+            case "q": NSApp.terminate(nil)
+            default: return event
+            }
+            return nil
+        }
     }
 }

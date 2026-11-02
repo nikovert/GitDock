@@ -246,6 +246,108 @@ final class ReviewWorkspaceModelTests: XCTestCase {
         XCTAssertEqual(fixture.state.draft(for: ReviewIdentity(account: "alice", prURL: key.url.absoluteString, headSHA: "aaa", baseSHA: "base")).body, "Comment on original code")
     }
 
+    func testSingleDraftSubmissionLeavesOtherCommentsAndSummaryUntouched() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.name) }
+        let service = DeferredReviewService()
+        let model = ReviewWorkspaceModel(service: service, local: fixture.state)
+        let key = try PullRequestKey(url: URL(string: "https://github.com/acme/app/pull/1")!)
+        model.select(key, account: "alice")
+        await service.waitFor(1); await service.finish(key, account: "alice"); await model.loadTask?.value
+        let one = WorkspaceInlineDraft(path: "file", line: 1, side: "LEFT", body: "First")
+        let two = WorkspaceInlineDraft(path: "file", line: 1, side: "RIGHT", body: "Second")
+        model.editDraft { $0.body = "Summary still being written"; $0.comments = [one, two] }
+        model.submitDraft(one.id, target: try XCTUnwrap(model.identity))
+        await model.submitTask?.value
+        let posted = await service.submittedComments
+        let body = await service.submittedBody
+        let event = await service.submittedEvent
+        XCTAssertEqual(posted.map(\.body), ["First"])
+        XCTAssertEqual(body, "")
+        XCTAssertEqual(event, .comment)
+        XCTAssertEqual(model.draft.comments, [two])
+        XCTAssertEqual(model.draft.body, "Summary still being written")
+    }
+
+    func testEditsDuringBatchSubmissionSurviveConfirmedSuccess() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.name) }
+        let service = DeferredReviewService()
+        let model = ReviewWorkspaceModel(service: service, local: fixture.state)
+        let key = try PullRequestKey(url: URL(string: "https://github.com/acme/app/pull/1")!)
+        model.select(key, account: "alice")
+        await service.waitFor(1); await service.finish(key, account: "alice"); await model.loadTask?.value
+        let one = WorkspaceInlineDraft(path: "file", line: 1, side: "LEFT", body: "First")
+        let two = WorkspaceInlineDraft(path: "file", line: 1, side: "RIGHT", body: "Second")
+        model.editDraft { $0.body = "Original summary"; $0.comments = [one, two] }
+        await service.holdSubmissions()
+        model.submit(event: .comment, target: try XCTUnwrap(model.identity))
+        await service.waitForSubmission()
+        XCTAssertTrue(model.editDraft { $0.body = "New summary"; $0.comments[0].body = "Edited while posting" })
+        await service.finishSubmission(); await model.submitTask?.value
+        XCTAssertEqual(model.draft.body, "New summary")
+        XCTAssertEqual(model.draft.comments.count, 1)
+        XCTAssertEqual(model.draft.comments.first?.id, one.id)
+        XCTAssertEqual(model.draft.comments.first?.body, "Edited while posting")
+    }
+
+    func testCapturedSubmissionCannotPostAfterAccountChange() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.name) }
+        let service = DeferredReviewService()
+        let model = ReviewWorkspaceModel(service: service, local: fixture.state)
+        let key = try PullRequestKey(url: URL(string: "https://github.com/acme/app/pull/1")!)
+        model.select(key, account: "alice")
+        await service.waitFor(1); await service.finish(key, account: "alice"); await model.loadTask?.value
+        let captured = try XCTUnwrap(model.identity)
+        model.select(key, account: "bob")
+        await service.waitFor(2); await service.finish(key, account: "bob"); await model.loadTask?.value
+        model.submit(event: .approve, target: captured)
+        let count = await service.submissionCount
+        XCTAssertEqual(count, 0)
+        XCTAssertNotNil(model.errorMessage)
+    }
+
+    func testSubmissionStatusDoesNotFollowNavigationToAnotherPR() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.name) }
+        let service = DeferredReviewService()
+        let model = ReviewWorkspaceModel(service: service, local: fixture.state)
+        let first = try PullRequestKey(url: URL(string: "https://github.com/acme/app/pull/1")!)
+        let second = try PullRequestKey(url: URL(string: "https://github.com/acme/app/pull/2")!)
+        model.select(first, account: "alice")
+        await service.waitFor(1); await service.finish(first, account: "alice"); await model.loadTask?.value
+        model.editDraft { $0.body = "Looks good" }
+        await service.holdSubmissions()
+        model.submit(event: .comment, target: try XCTUnwrap(model.identity))
+        await service.waitForSubmission()
+        XCTAssertNotNil(model.submissionMessage)
+        model.select(second, account: "alice")
+        await service.waitFor(2); await service.finish(second, account: "alice"); await model.loadTask?.value
+        await service.finishSubmission(); await model.submitTask?.value
+        XCTAssertNil(model.submissionMessage)
+    }
+
+    func testRepeatedCitationNavigationIssuesNewScrollRequestAndRejectsUnavailableSides() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.name) }
+        let service = DeferredReviewService()
+        let model = ReviewWorkspaceModel(service: service, local: fixture.state)
+        let key = try PullRequestKey(url: URL(string: "https://github.com/acme/app/pull/1")!)
+        model.select(key, account: "alice")
+        await service.waitFor(1); await service.finish(key, account: "alice"); await model.loadTask?.value
+        let citation = ReviewChatCitation(path: "file", line: 1, side: "LEFT")
+        model.follow(citation)
+        let first = model.navigationRequest
+        XCTAssertEqual(model.selection?.side, "LEFT")
+        model.follow(citation)
+        XCTAssertGreaterThan(model.navigationRequest, first)
+        let count = model.navigationRequest
+        model.follow(ReviewChatCitation(path: "file", line: 1, side: "UNKNOWN"))
+        XCTAssertEqual(model.navigationRequest, count)
+        XCTAssertNotNil(model.errorMessage)
+    }
+
     private func makeFixture() throws -> (name: String, defaults: UserDefaults, state: ReviewWorkspaceState) {
         let name = "ReviewModel-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
@@ -259,6 +361,9 @@ private actor DeferredReviewService: PRReviewServicing {
     var pending: [String: CheckedContinuation<PRReviewSnapshot, any Error>] = [:]
     var rejects = false
     var submissionCount = 0
+    var submittedComments: [PRReviewDraftComment] = []
+    var submittedBody = ""
+    var submittedEvent: PRReviewEvent?
     var holds = false
     var submission: CheckedContinuation<Void, Never>?
     func rejectSubmissions() { rejects = true }
@@ -282,10 +387,12 @@ private actor DeferredReviewService: PRReviewServicing {
             notices: [], comments: [], checksSummary: "Unknown", comparisonBaseSHA: nil, fileListComplete: complete))
     }
     func submit(key: PullRequestKey, accountLogin: String, headSHA: String, baseSHA: String, event: PRReviewEvent,
-                body: String, comments: [PRReviewDraftComment]) async throws {
+                body: String, comments: [PRReviewDraftComment]) async throws -> PRReviewSubmissionReceipt {
         submissionCount += 1
+        submittedComments = comments; submittedBody = body; submittedEvent = event
         if rejects { throw PRReviewError.revisionChanged }
         if holds { await withCheckedContinuation { submission = $0 } }
+        return PRReviewSubmissionReceipt(id: 42, headSHA: headSHA, event: event)
     }
 }
 

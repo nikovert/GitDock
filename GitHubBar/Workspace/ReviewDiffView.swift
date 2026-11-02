@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ReviewDiffView: View {
     @Bindable var review: ReviewWorkspaceModel
+    @Bindable var layout: WorkspaceLayout
     private var files: [PRSearchFile] { review.snapshot?.files ?? [] }
 
     var body: some View {
@@ -24,51 +25,38 @@ struct ReviewDiffView: View {
                     .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
             }
             Divider()
-            HSplitView {
-                List(selection: Binding(get: { review.selectedFile?.path }, set: { if let path = $0 { review.selectFile(path) } })) {
-                    ForEach(files, id: \.path) { file in
-                        HStack(alignment: .top, spacing: 5) {
-                            Image(systemName: review.draft.viewedFiles.contains(file.path) ? "checkmark.circle.fill" : "doc")
-                                .foregroundStyle(review.draft.viewedFiles.contains(file.path) ? Color.green : Color.secondary)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(file.path).font(.caption).lineLimit(3)
-                                Text("+\(file.additions) −\(file.deletions)").font(.caption2.monospaced()).foregroundStyle(.secondary)
-                            }
-                        }.tag(file.path).help(file.path)
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    if layout.showsFileList {
+                        fileList.frame(width: layout.resolvedFileListWidth(availableWidth: geometry.size.width))
+                        WorkspaceResizeDivider(width: Binding(get: { layout.resolvedFileListWidth(availableWidth: geometry.size.width) }, set: { layout.fileListWidth = $0 }),
+                            minimum: 140, maximum: min(520, geometry.size.width - 300 - 10))
+                            .frame(width: WorkspaceLayout.dividerWidth)
                     }
-                }.frame(minWidth: 130, idealWidth: 160, maxWidth: 220)
-                if let file = review.selectedFile {
-                    fileContent(file).frame(minWidth: 250, maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ContentUnavailableView("No changed files", systemImage: "doc.text.magnifyingglass",
-                        description: Text("There may be no changes in this comparison. Check any coverage notice above."))
+                    if let file = review.selectedFile {
+                        fileContent(file).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ContentUnavailableView("No changed files", systemImage: "doc.text.magnifyingglass",
+                            description: Text("There may be no changes in this comparison. Check any coverage notice above."))
+                    }
                 }
             }
-            if let selected = review.selection {
-                Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("\(selected.path):\(selected.line) · \(selected.side)").font(.caption.monospaced()).lineLimit(1)
-                        Spacer()
-                        Button("Ask agent") {
-                            review.showsAgent = true
-                            review.question = "Explain this change at \(selected.path):\(selected.line) and any risks."
-                        }
-                        Button { review.selection = nil } label: { Image(systemName: "xmark") }
+        }
+    }
+
+    private var fileList: some View {
+        List(selection: Binding(get: { review.selectedFile?.path }, set: { if let path = $0 { review.selectFile(path) } })) {
+            ForEach(files, id: \.path) { file in
+                HStack(alignment: .top, spacing: 5) {
+                    Image(systemName: review.draft.viewedFiles.contains(file.path) ? "checkmark.circle.fill" : "doc")
+                        .foregroundStyle(review.draft.viewedFiles.contains(file.path) ? Color.green : Color.secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(file.path).font(.caption).lineLimit(3)
+                        Text("+\(file.additions) −\(file.deletions)").font(.caption2.monospaced()).foregroundStyle(.secondary)
+                        let count = review.draft.comments.filter { $0.path == file.path }.count
+                        if count > 0 { Label("\(count) drafts", systemImage: "pencil").font(.caption2).foregroundStyle(.orange) }
                     }
-                    if !review.sinceLastReview, review.snapshot?.canDraftInlineComment(in: selected.path) == true {
-                        HStack(alignment: .top) {
-                            TextField("Draft an inline comment…", text: $review.inlineBody, axis: .vertical).lineLimit(2...4)
-                                .textFieldStyle(.roundedBorder)
-                            Button("Save draft") { review.addInlineDraft() }
-                                .disabled(review.inlineBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || review.submitting || !review.local.canSave)
-                        }
-                    } else if !review.sinceLastReview {
-                        Text("This file or the PR file list is incomplete, so inline drafts cannot be submitted here.")
-                            .font(.caption).foregroundStyle(.secondary)
-                        if let key = review.snapshot?.key { Link("Comment on GitHub ↗", destination: key.url.appendingPathComponent("files")) }
-                    }
-                }.padding(12)
+                }.tag(file.path).help(file.path)
             }
         }
     }
@@ -99,24 +87,38 @@ struct ReviewDiffView: View {
                                 ForEach(splitRows(lines)) { row in
                                     if let hunk = row.hunk { hunkRow(hunk) }
                                     else {
-                                        HStack(spacing: 0) {
-                                            splitCell(row.left, file: file, side: "LEFT", width: columnWidth)
-                                            Rectangle().fill(Color.secondary.opacity(0.2)).frame(width: 1)
-                                            splitCell(row.right, file: file, side: "RIGHT", width: columnWidth)
-                                        }.frame(height: 22).id(row.id)
+                                        VStack(alignment: .leading, spacing: 0) {
+                                            HStack(spacing: 0) {
+                                                splitCell(row.left, file: file, side: "LEFT", width: columnWidth)
+                                                Rectangle().fill(Color.secondary.opacity(0.2)).frame(width: 1)
+                                                splitCell(row.right, file: file, side: "RIGHT", width: columnWidth)
+                                            }.frame(height: 22)
+                                            SplitDiffAnnotations(columnWidth: columnWidth) {
+                                                lineConversations(file: file, oldLine: row.left?.oldLine, newLine: nil)
+                                            } right: {
+                                                lineConversations(file: file, oldLine: nil, newLine: row.right?.newLine)
+                                            }
+                                        }.id(row.id)
                                     }
                                 }
                             } else {
                                 ForEach(lines) { line in
                                     if line.kind == .hunk { hunkRow(line).id(line.id) }
-                                    else { unifiedLine(line, file: file).id(line.id) }
+                                    else {
+                                        VStack(alignment: .leading, spacing: 0) {
+                                            unifiedLine(line, file: file)
+                                            lineConversations(file: file, oldLine: line.oldLine, newLine: line.newLine)
+                                                .frame(width: min(geometry.size.width, contentWidth))
+                                        }.id(line.id)
+                                    }
                                 }
                             }
                         }.frame(width: contentWidth, alignment: .leading)
                             .id("\(file.path)|\(review.splitDiff)")
                     }
-                    .onChange(of: review.selection) { _, selected in
-                        guard let selected, selected.path == file.path,
+                    .task(id: DiffScrollRequest(path: file.path, split: review.splitDiff, selection: review.selection, request: review.navigationRequest)) {
+                        await Task.yield()
+                        guard let selected = review.selection, selected.path == file.path,
                               let line = PRDiffParser.parse(patch).first(where: {
                                   selected.side == "LEFT" ? $0.oldLine == selected.line : $0.newLine == selected.line
                               }) else { return }
@@ -177,6 +179,52 @@ struct ReviewDiffView: View {
             }.buttonStyle(.plain)
         } else { Color.secondary.opacity(0.05).frame(width: width, height: 22) }
     }
+    @ViewBuilder private func lineConversations(file: PRSearchFile, oldLine: Int?, newLine: Int?) -> some View {
+        if !review.sinceLastReview {
+            let drafts = review.draft.comments.filter { $0.path == file.path &&
+                (($0.side == "LEFT" && oldLine == $0.line) || ($0.side == "RIGHT" && newLine == $0.line)) }
+            let threads = review.snapshot?.threads.filter { thread in
+                guard let anchor = review.snapshot?.anchor(for: thread) else { return false }
+                return anchor.path == file.path && (anchor.side == .left ? oldLine == anchor.line : newLine == anchor.line)
+            } ?? []
+            let selection = review.selection.flatMap { selected in
+                selected.path == file.path && (selected.side == "LEFT" ? oldLine == selected.line : newLine == selected.line) ? selected : nil
+            }
+            if !drafts.isEmpty || !threads.isEmpty || selection != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(drafts) { draft in ReviewInlineDraftCard(review: review, draftID: draft.id) }
+                    ForEach(threads) { thread in ReviewConversationCard(review: review, thread: thread, showsNavigation: false) }
+                    if let selection { selectionEditor(selection) }
+                }.padding(10)
+            }
+        }
+    }
+
+    private func selectionEditor(_ selected: ReviewLineSelection) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("\(selected.path):\(selected.line) · \(selected.side)").font(.caption.monospaced()).lineLimit(2)
+                Spacer()
+                Button { review.selection = nil } label: { Image(systemName: "xmark") }
+            }
+            Button("Ask agent about this line") {
+                layout.showsInspector = true
+                review.question = "Explain this change at \(selected.path):\(selected.line) and any risks."
+            }.controlSize(.small)
+            if review.snapshot?.canDraftInlineComment(in: selected.path) == true {
+                MultilineComposer(text: $review.inlineBody, placeholder: "Draft an inline comment…",
+                    isEnabled: canSaveInline, actionLabel: "Save draft") { review.addInlineDraft() }.frame(height: 85)
+                HStack {
+                    Button("Save draft") { review.addInlineDraft() }.disabled(!canSaveInline)
+                    Text("Enter saves locally · Ctrl+Enter adds a newline").font(.caption2).foregroundStyle(.secondary)
+                }
+            } else {
+                Text("This diff is incomplete; comment on GitHub for this file.").font(.caption).foregroundStyle(.secondary)
+            }
+        }.padding(12).background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+    }
+    private var canSaveInline: Bool { !review.inlineBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && review.local.canSave }
+
     private func selected(_ line: PRDiffLine, side: String) -> Bool {
         review.selection?.side == side && review.selection?.line == (side == "LEFT" ? line.oldLine : line.newLine)
     }
@@ -217,4 +265,23 @@ private func splitRows(_ lines: [PRDiffLine]) -> [SplitDiffRow] {
         }
     }
     return result
+}
+
+private struct DiffScrollRequest: Hashable {
+    let path: String
+    let split: Bool
+    let selection: ReviewLineSelection?
+    let request: Int
+}
+
+struct SplitDiffAnnotations<Left: View, Right: View>: View {
+    let columnWidth: CGFloat
+    @ViewBuilder var left: Left
+    @ViewBuilder var right: Right
+    var body: some View {
+        HStack(alignment: .top, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) { left }.frame(width: columnWidth, alignment: .topLeading)
+            VStack(alignment: .leading, spacing: 0) { right }.frame(width: columnWidth, alignment: .topLeading)
+        }
+    }
 }

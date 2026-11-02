@@ -1,17 +1,36 @@
 import Foundation
 
 public struct ReviewChatConfiguration: Codable, Equatable, Sendable {
+    public var provider: ReviewChatProvider
     public var displayName: String
     public var executable: String
     public var arguments: [String]
     public var workingDirectory: String
 
     public init(displayName: String = "", executable: String = "", arguments: [String] = [],
-                workingDirectory: String = "") {
+                workingDirectory: String = "", provider: ReviewChatProvider = .custom) {
+        self.provider = provider
         self.displayName = displayName
         self.executable = executable
         self.arguments = arguments
         self.workingDirectory = workingDirectory
+    }
+
+    private enum CodingKeys: String, CodingKey { case provider, displayName, executable, arguments, workingDirectory }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        displayName = try values.decode(String.self, forKey: .displayName)
+        executable = try values.decode(String.self, forKey: .executable)
+        arguments = try values.decode([String].self, forKey: .arguments)
+        workingDirectory = try values.decode(String.self, forKey: .workingDirectory)
+        if let saved = try values.decodeIfPresent(ReviewChatProvider.self, forKey: .provider) {
+            provider = saved
+        } else if let index = arguments.firstIndex(of: "--provider"), arguments.indices.contains(index + 1) {
+            provider = ReviewChatProvider(rawValue: arguments[index + 1]) ?? .custom
+        } else {
+            provider = .custom
+        }
     }
 
     @discardableResult

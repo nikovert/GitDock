@@ -84,15 +84,14 @@ For testing without touching your real board, set `GITHUBBAR_WORKSPACE_DIR` to a
 absolute temporary directory when invoking the CLI. The app always uses its normal
 Application Support location.
 
-## Agent review integration
+## Local chat and legacy worker data
 
-The optional review-agent integration uses the bundled CLI's `agent` JSON bridge for review
-requests, policy, priority, and progress. It stores review state separately in
-`agent-reviews.json`. See [Agent reviews](agent-reviews.md) for setup, approved defaults,
-queue behavior, and packaging checks. Configure any compatible review worker in Settings,
-then explicitly Save and Start it, or choose external worker mode. A raw coding CLI
-needs a compatible adapter; GitHubBar does not bundle a review worker.
-For custom clients, see the [agent review protocol](agent-review-protocol.md).
+Codex and Claude chat are available through the workspace provider picker. See
+[Review workspace](review-workspace.md) and [Chat setup](agent-chat.md).
+The app no longer launches, polls, or requests Giles background reviews. Existing
+`agent-reviews.json` files and external workers are left intact; the bundled legacy
+CLI protocol remains compatible but is not driven by the app. Priority-author
+preferences migrate once into independent app preferences without rewriting worker data.
 
 ## Refresh and merged-worktree cleanup
 
@@ -143,9 +142,8 @@ reduce this race but cannot lock out an independently launched editor or agent.
 
 ## Boundaries
 
-A pinned Codex or Claude session stays local until you explicitly ask it to review or
-publish something. Agent review publication requires the optional integration and its
-effective policy: fixes default to off, comments to own PRs only, and replies to off.
+A pinned Codex or Claude session stays local until you explicitly ask it to act.
+Advisory workspace chat publishes only through explicit workspace controls.
 The board and review queue can contain private notes, instructions, and paths, so do not
 commit `workspace.json` or `agent-reviews.json` to a repository.
 This fork currently opens linked sessions in Apple Terminal; it does not re-focus an

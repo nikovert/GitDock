@@ -5,7 +5,8 @@
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-0d1117?style=flat-square&logo=apple&logoColor=white)](https://github.com/nikovert/GitHubBar/releases)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](https://www.swift.org/)
 
-Keep your review queue in the menu bar. Open the full workspace to prioritize PRs,
+GitHubBar opens its dashboard at launch and stays in the Dock and Cmd+Tab. Keep your
+review queue in a persistent menu bar popover. Use the resizable workspace to prioritize PRs,
 read diffs, draft and submit reviews, ask an agent questions, and jump into the
 terminal session attached to your worktree.
 
@@ -14,12 +15,12 @@ terminal session attached to your worktree.
 ![Native dark-mode review workspace with split diffs, file navigation, review controls, and the agent chat panel](docs/assets/workspace-review-dark.png)
 
 *The native review workspace in dark mode. Screenshots use example PR data; the
-chat panel is shown before connecting an agent.*
+chat panel shows an example advisory answer.*
 
 > This is a development fork of
 > [FranciscoMoretti/GitHubBar](https://github.com/FranciscoMoretti/GitHubBar), with a
 > larger management workspace, in-app code review, and local agent integrations.
-> The v0.6.0 validation download includes the workspace shown in these screenshots.
+> The v0.6.0 download predates the workspace improvements in the current source.
 
 ## Know what needs your attention
 
@@ -40,16 +41,16 @@ chat panel is shown before connecting an agent.*
 
 ![Light-mode management workspace showing attention queues, PR metadata, priority reasons, age and activity, and the next review action](docs/assets/workspace-manage-light.png)
 
-*Manage PRs in light mode. Activity uses GitHub's update timestamp, which can include bots.*
+*Dashboard in light mode. Activity uses GitHub's update timestamp, which can include bots.*
 
 ## Review code inside the app
 
 - **Unified and split diffs** with file navigation, line numbers, resizable file
-  lists, and a hideable agent panel for more reading space.
+  lists, and resizable PR/chat panels. Use **Layout → Focus diff** for more reading space.
 - **Overview, Changes, Threads, and Workspace tabs** for the description, checks,
   conversation, code, local notes, and attached sessions.
 - **Inline drafts and review submission.** Select a line, save a comment locally,
-  then explicitly submit a Comment, Approval, or Request changes review to GitHub.
+  then explicitly post that draft or submit a batch Comment, Approval, or Request changes review to GitHub.
 - **Pick up where you left off.** Mark files viewed, save a local review baseline,
   and use **Since my last review** to inspect subsequent changes.
 - **Drafts stay attached to the code you reviewed.** State is scoped to the account,
@@ -73,21 +74,19 @@ diff line without switching away from the PR. The agent receives the description
 a bounded diff excerpt, selected-line context, and recent conversation. Answers can
 include clickable file/line citations.
 
-In **Settings → Workspace chat**, choose **Use an installed CLI…** for a locally
+In **Settings → Workspace chat**, choose a detected provider for a locally
 authenticated Codex or Claude CLI, or connect any command implementing the
 [JSON chat protocol](docs/agent-chat.md). CLI presets use the bundled Python adapter
 and require Python 3. Chat is optional; the app works without an agent.
 
-For background reviews, connect a compatible worker in **Settings → Review agent**.
-Request or re-request a review from a PR, then follow its queued, running, completed,
-or failed status. Control fixes (**off**, **low risk**, or **all**), comments, and
-replies with PR and stack policies. Defaults keep fixes and replies off, and allow
-review comments only on your own PRs.
+Chat renders Markdown and code, supports cancellation and retry, and labels partial
+context. Choose Codex, Claude, or a custom adapter in the provider picker; **Test
+connection** verifies a response. Chat stays advisory. Publish individual inline
+drafts or a batch Comment, Approve, or Request changes review with explicit workspace
+controls. Inline-only Comment reviews do not need a summary.
 
-Chat and background reviews have separate connections: chat answers are advisory;
-background workers enforce their configured write policies. A general coding CLI
-needs a separate compatible worker adapter to consume review requests. See
-[review-worker setup](docs/agent-reviews.md).
+The app no longer starts or polls Giles background review workers. Existing worker
+data is retained, and ordinary local terminal sessions remain available.
 
 ## Keep worktrees and agent sessions attached to the PR
 

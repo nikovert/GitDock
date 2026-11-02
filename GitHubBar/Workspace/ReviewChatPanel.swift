@@ -12,10 +12,10 @@ struct ReviewChatPanel: View {
         (try? JSONDecoder().decode(ReviewChatConfiguration.self, from: configurationData)) ?? ReviewChatConfiguration()
     }
     private var configured: Bool { (try? configuration.validated()) != nil }
-    private var policy: String {
-        guard let pullRequest else { return "Advisory chat only. Do not modify files, publish comments, or reply on GitHub." }
-        let value = workspace.reviewDocument.effectivePolicy(for: workspace.reviewContext(for: pullRequest))
-        return "Advisory chat only. Do not modify files or publish anything. Separate review-worker policy: fixes=\(value.fixMode?.rawValue ?? "off"), comments=\(value.comments ?? false), replies=\(value.replies ?? false). This does not grant chat permission to act."
+    private let policy = "Advisory chat only. Use the supplied PR context. Do not modify files, run tools, publish comments, or reply on GitHub. Explain missing evidence."
+    private var canSend: Bool {
+        configured && !review.chatting && review.snapshot != nil && review.local.canSave &&
+            !review.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -35,6 +35,10 @@ struct ReviewChatPanel: View {
             if let snapshot = review.snapshot {
                 Text("Context: #\(snapshot.key.number) · \(snapshot.headSHA.prefix(8))")
                     .font(.caption.monospaced()).foregroundStyle(.secondary)
+                if review.contextIsIncomplete {
+                    Label("Partial context · some files or diff lines are unavailable", systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                }
                 if let selected = review.selection {
                     Text("\(selected.path):\(selected.line)").font(.caption.monospaced()).lineLimit(2)
                 }
@@ -57,11 +61,15 @@ struct ReviewChatPanel: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(message.role == "user" ? "You" : configuration.displayName.nilIfEmpty ?? "Agent")
                                     .font(.caption.bold()).foregroundStyle(.secondary)
-                                Text(message.text).font(.subheadline).textSelection(.enabled)
+                                AgentMarkdownView(text: message.text)
                             }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
                                 .background(message.role == "user" ? Color(nsColor: .windowBackgroundColor) : Color.clear,
                                     in: RoundedRectangle(cornerRadius: 8))
                                 .id(message.id)
+                        }
+                        if review.chatting {
+                            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Agent is thinking…").font(.caption).foregroundStyle(.secondary) }
+                                .accessibilityElement(children: .combine)
                         }
                         ForEach(Array(review.citations.enumerated()), id: \.offset) { _, citation in
                             Button("\(citation.path):\(citation.line)") { review.follow(citation) }
@@ -76,69 +84,81 @@ struct ReviewChatPanel: View {
             if !configured {
                 Button("Connect a chat adapter…") { showsSettings = true }
             }
-            TextField("Ask about this PR…", text: $review.question, axis: .vertical)
-                .lineLimit(3...7).textFieldStyle(.roundedBorder)
+            if let error = review.chatErrorMessage {
+                Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
+                if review.canRetryChat {
+                    Button("Retry question") { review.retryQuestion(configuration: configuration, policy: policy) }
+                        .disabled(!configured || review.chatting || !review.local.canSave)
+                }
+            }
+            MultilineComposer(text: $review.question, placeholder: "Ask about this PR…", isEnabled: canSend, actionLabel: "Ask agent") {
+                review.sendQuestion(configuration: configuration, policy: policy)
+            }.frame(height: 88)
             HStack {
                 if review.chatting { Button("Stop") { review.stopChat() } }
                 Spacer()
                 Button("Ask agent") { review.sendQuestion(configuration: configuration, policy: policy) }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!configured || review.chatting || review.snapshot == nil || !review.local.canSave || review.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!canSend)
             }
             Text("Answers stay here. GitHub reviews are submitted separately.").font(.caption2).foregroundStyle(.secondary)
-            Divider()
-            if let subject = workspace.selectedSubject {
-                DisclosureGroup("Review-agent permissions") {
-                    WorkspaceReviewPolicyControls(workspace: workspace, subject: subject).padding(.top, 6)
-                }.font(.caption)
-                let sessions = workspace.document.sessions(for: subject)
-                ForEach(sessions) { session in
-                    Button("Jump to \(session.agent.rawValue.capitalized) session") { workspace.focus(session) }
-                        .font(.caption)
-                }
-            }
+
         }.padding(16).background(Color(nsColor: .controlBackgroundColor))
     }
 }
 
 struct ReviewChatSettingsView: View {
     @AppStorage("githubbar.chat.configuration") private var configurationData = Data()
+    @State private var provider: ReviewChatProvider = .custom
     @State private var name = ""
     @State private var executable = ""
     @State private var arguments = ""
     @State private var directory = ""
     @State private var status: String?
+    @State private var testing = false
+    @State private var connectionTask: Task<Void, Never>?
     @Environment(\.dismiss) private var dismiss
+    private let detection = ReviewChatProviderDetection()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Connect a chat agent").font(.title2.bold())
-            Text("Use a local command that supports GitHubBar's JSON chat protocol. Chat is separate from the background review queue.")
+            Text("Use your existing local Codex or Claude account, or a compatible custom adapter.")
                 .foregroundStyle(.secondary)
-            Menu("Use an installed CLI…") {
-                Button("Codex") { useInstalledCLI("codex") }
-                Button("Claude") { useInstalledCLI("claude") }
+            Picker("Provider", selection: Binding(get: { provider }, set: { value in
+                provider = value; status = nil
+                if value != .custom { useInstalledCLI(value) }
+            })) {
+                ForEach(ReviewChatProvider.allCases) { value in Text(value.displayName).tag(value) }
+            }.pickerStyle(.segmented).disabled(testing)
+            if provider == .custom {
+                Form {
+                    TextField("Display name", text: $name)
+                    TextField("Executable (absolute path)", text: $executable)
+                    TextField("Working directory", text: $directory)
+                    TextField("Arguments (JSON array or one per line)", text: $arguments, axis: .vertical).lineLimit(3...6)
+                }.disabled(testing)
+            } else {
+                Label(detection.executable(for: provider)?.path ?? "\(provider.displayName) is not installed in a known executable location.",
+                      systemImage: detection.executable(for: provider) == nil ? "exclamationmark.triangle" : "checkmark.circle")
+                    .font(.caption).textSelection(.enabled)
+                Text("Sign in first from Terminal using \(provider == .codex ? "codex login" : "claude auth login"). The connection test sends a small request and may use your provider allowance.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Form {
-                TextField("Display name", text: $name)
-                TextField("Executable (absolute path)", text: $executable)
-                TextField("Working directory", text: $directory)
-                TextField("Arguments (JSON array or one per line)", text: $arguments, axis: .vertical).lineLimit(3...6)
-            }
-            Text("The adapter receives PR context and returns an answer with optional citations. CLI presets use your existing local login. You can also configure any compatible JSON adapter.")
-                .font(.caption).foregroundStyle(.secondary)
             if let guide = Bundle.main.url(forResource: "agent-chat", withExtension: "md") {
                 Button("Open chat setup guide") { NSWorkspace.shared.open(guide) }
             }
+            if testing {
+                HStack { ProgressView().controlSize(.small); Text("Testing connection…").font(.caption) }
+            }
             if let status { Text(status).font(.caption).textSelection(.enabled) }
             HStack {
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { connectionTask?.cancel(); dismiss() }.keyboardShortcut(.cancelAction)
                 if !configurationData.isEmpty {
-                    Button("Disconnect") { configurationData = Data(); dismiss() }
+                    Button("Disconnect") { connectionTask?.cancel(); configurationData = Data(); dismiss() }
                 }
-                Button("Check paths") {
-                    do { _ = try makeConfiguration(); status = "Paths are valid. This does not start the agent or verify protocol support." }
-                    catch { status = error.localizedDescription }
+                Button(testing ? "Stop test" : "Test connection") {
+                    if testing { connectionTask?.cancel() } else { testConnection() }
                 }
                 Spacer()
                 Button("Save") {
@@ -146,33 +166,67 @@ struct ReviewChatSettingsView: View {
                         configurationData = try JSONEncoder().encode(makeConfiguration())
                         dismiss()
                     } catch { status = error.localizedDescription }
-                }.buttonStyle(.borderedProminent)
+                }.buttonStyle(.borderedProminent).disabled(testing)
             }
         }.padding(24).frame(width: 590)
         .onAppear {
             if let value = try? JSONDecoder().decode(ReviewChatConfiguration.self, from: configurationData) {
+                provider = value.provider
                 name = value.displayName; executable = value.executable; directory = value.workingDirectory
-                arguments = String(decoding: (try? JSONEncoder().encode(value.arguments)) ?? Data(), as: UTF8.self)
+                arguments = encodedArguments(value.arguments)
+            } else {
+                provider = detection.selection(persisted: nil)
+                if provider != .custom { useInstalledCLI(provider) }
             }
         }
+        .onDisappear { connectionTask?.cancel() }
     }
 
     private func makeConfiguration() throws -> ReviewChatConfiguration {
         try ReviewChatConfiguration(displayName: name, executable: executable,
-            arguments: ReviewAgentConnection.parseArguments(arguments), workingDirectory: directory).validated()
+            arguments: ReviewAgentConnection.parseArguments(arguments), workingDirectory: directory,
+            provider: provider).validated()
     }
 
-    private func useInstalledCLI(_ provider: String) {
-        guard let cli = AgentSessionManager.findExecutable(provider),
-              let python = AgentSessionManager.findExecutable("python3"),
+    private func encodedArguments(_ values: [String]) -> String {
+        String(decoding: (try? JSONEncoder().encode(values)) ?? Data(), as: UTF8.self)
+    }
+
+    private func useInstalledCLI(_ value: ReviewChatProvider) {
+        name = value.displayName
+        executable = ""; arguments = ""; directory = NSHomeDirectory()
+        let interpreters = ReviewChatProviderDetection(searchPaths: ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"])
+        guard let cli = detection.executable(for: value),
+              let python = interpreters.executable(named: "python3"),
               let adapter = Bundle.main.url(forResource: "review-chat-adapter", withExtension: "py") else {
-            status = "This preset requires the installed \(provider) CLI, Python 3, and GitHubBar's bundled adapter. Install and log into the CLI first, or configure a custom adapter."
+            status = "Install and sign into \(value.displayName), then reopen settings. This connection also requires Python 3 and GitHubBar's bundled adapter. Use Custom adapter for another installation."
             return
         }
-        name = provider.capitalized
         executable = python.path
-        directory = NSHomeDirectory()
-        arguments = String(decoding: (try? JSONEncoder().encode([adapter.path, "--provider", provider, "--cli", cli.path])) ?? Data(), as: UTF8.self)
-        status = "Preset loaded. Choose a working directory, then save. Questions use your existing CLI account."
+        arguments = encodedArguments([adapter.path, "--provider", value.rawValue, "--cli", cli.path])
+    }
+
+    private func testConnection() {
+        do {
+            let configuration = try makeConfiguration()
+            testing = true; status = nil
+            connectionTask = Task { @MainActor in
+                defer { testing = false; connectionTask = nil }
+                do {
+                    let request = ReviewChatRequest(accountLogin: "connection-test",
+                        prURL: "https://github.com/githubbar/connection-test/pull/1", headSHA: "connection-test",
+                        question: "Reply briefly that this chat connection works. Do not run tools.",
+                        context: "Connection test only. No repository or PR context is available.",
+                        policy: "Advisory only. No tools, file edits, or publication.", messages: [])
+                    _ = try await ReviewChatClient(timeout: 30).send(request, configuration: configuration)
+                    try Task.checkCancellation()
+                    status = "Connection successful. The adapter returned a valid response."
+                } catch is CancellationError {
+                    status = "Connection test stopped."
+                } catch {
+                    status = "Connection failed: \(error.localizedDescription) Check local CLI sign-in and the setup guide."
+                }
+            }
+        } catch { status = error.localizedDescription }
     }
 }

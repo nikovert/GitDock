@@ -81,11 +81,12 @@ public actor PRReviewClient: PRReviewServicing {
             fileListComplete: sinceSHA == nil && document.coverage.fileListComplete)
     }
 
+    @discardableResult
     public func submit(key: PullRequestKey, accountLogin: String, headSHA: String, baseSHA: String, event: PRReviewEvent,
-                       body: String, comments: [PRReviewDraftComment]) async throws {
+                       body: String, comments: [PRReviewDraftComment]) async throws -> PRReviewSubmissionReceipt {
         let account = try await resolve(accountLogin)
         guard Self.validSHA(headSHA), Self.validSHA(baseSHA) else { throw PRReviewError.invalidResponse }
-        guard event == .approve || !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        guard event.permits(body: body, commentCount: comments.count),
               comments.count <= 100, body.utf8.count <= 65_536 else { throw PRReviewError.invalidReview }
         let identity = Identity(account: accountLogin.lowercased(), key: key)
         try validateComparison(comments, identity)
@@ -114,11 +115,17 @@ public actor PRReviewClient: PRReviewServicing {
                                  comments: comments.map { .init(path: $0.path, line: $0.line, side: $0.side, body: $0.body) })
         let data = try JSONEncoder().encode(payload)
         guard data.count <= maximumResponseBytes else { throw PRSearchError.responseTooLarge }
-        let response = try await transport.post(path: "\(pullPath(key))/reviews", account: account, body: data)
+        let verifiedAccount = try await resolve(accountLogin)
+        try Task.checkCancellation()
+        let response = try await transport.post(path: "\(pullPath(key))/reviews", account: verifiedAccount, body: data)
         // A failed or ambiguous POST is never retried here: that could duplicate a review.
         if response.statusCode == 422 { throw PRReviewError.submissionRejected }
         if let failure = PRSearchHTTPPolicy.failure(status: response.statusCode, headers: response.headers, body: response.data) { throw failure }
         guard response.data.count <= maximumResponseBytes else { throw PRSearchError.responseTooLarge }
+        let confirmation = try decode(SubmittedReview.self, response.data)
+        guard confirmation.id > 0, confirmation.commitId == headSHA,
+              confirmation.state == event.submittedState else { throw PRReviewError.invalidResponse }
+        return PRReviewSubmissionReceipt(id: confirmation.id, headSHA: headSHA, event: event, url: confirmation.htmlUrl)
     }
 
     private func validateComparison(_ comments: [PRReviewDraftComment], _ identity: Identity) throws {
@@ -250,6 +257,8 @@ private struct Comment: Decodable {
     let body: String?
     let path: String?
     let line: Int?
+    let side: PRReviewDraftComment.Side?
+    let originalLine: Int?
     let htmlUrl: URL?
     let createdAt: Date?
     let submittedAt: Date?
@@ -258,7 +267,8 @@ private struct Comment: Decodable {
     func comment(kind: String) -> PRReviewComment {
         .init(id: "\(kind):\(id)", author: user?.login ?? "Unknown", body: body ?? "", path: path,
               line: line, url: htmlUrl, createdAt: createdAt ?? submittedAt,
-              replyToID: inReplyToId.map { "inline:\($0)" })
+              replyToID: inReplyToId.map { "inline:\($0)" }, side: side,
+              isOutdated: kind == "inline" && path != nil && line == nil, originalLine: originalLine)
     }
 }
 private struct CombinedStatus: Decodable { let state: String; let totalCount: Int }
@@ -270,4 +280,11 @@ private struct Submission: Encodable {
     let body: String
     let comments: [Inline]
     struct Inline: Encodable { let path: String; let line: Int; let side: PRReviewDraftComment.Side; let body: String }
+}
+
+private struct SubmittedReview: Decodable {
+    let id: Int
+    let commitId: String
+    let state: String
+    let htmlUrl: URL?
 }

@@ -5,10 +5,36 @@ import SwiftUI
 struct PullRequestRow: View {
     let pullRequest: PullRequestPresentation
     let showsRepository: Bool
+    var actions: AppActions = AppActions()
+    var workspaceModel: WorkspaceModel? = nil
 
     var body: some View {
+        HStack(spacing: 6) {
+            primaryButton
+            if !runningSessions.isEmpty {
+                Menu {
+                    ForEach(runningSessions) { session in
+                        Button("Jump to \(session.agent.rawValue.capitalized) session") { workspaceModel?.focus(session) }
+                    }
+                } label: {
+                    Image(systemName: "terminal").font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Jump to a running local session")
+            }
+        }
+    }
+
+    private var runningSessions: [AgentSessionLink] {
+        guard let workspaceModel, let key = try? PullRequestKey(url: pullRequest.url) else { return [] }
+        let sessions = workspaceModel.document.sessions(for: .pullRequest(key))
+        return sessions.filter { $0.state == .running }
+    }
+
+    private var primaryButton: some View {
         Button {
-            NSWorkspace.shared.open(pullRequest.url)
+            actions.openPullRequest(pullRequest)
         } label: {
             HStack(alignment: .center, spacing: 6) {
                 pullRequestStatus
@@ -33,14 +59,21 @@ struct PullRequestRow: View {
         }
         .buttonStyle(.plain)
         .focusable(true)
+        .background(SecondaryClickCapture { actions.openGitHub(pullRequest.url) })
         .contextMenu {
+            Button("Open on GitHub") { actions.openGitHub(pullRequest.url) }
+            if let key = try? PullRequestKey(url: pullRequest.url), let workspaceModel {
+                ForEach(workspaceModel.document.sessions(for: .pullRequest(key)).filter { $0.state == .running }) { session in
+                    Button("Jump to \(session.agent.rawValue.capitalized) session") { workspaceModel.focus(session) }
+                }
+            }
             Button("Copy Link") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(pullRequest.url.absoluteString, forType: .string)
             }
         }
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Opens this pull request on GitHub")
+        .accessibilityHint("Opens this pull request in the review workspace. Secondary click opens GitHub.")
     }
 
     private var pullRequestStatus: some View {

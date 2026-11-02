@@ -6,20 +6,23 @@ struct ReviewWorkspaceView: View {
     @Bindable var workspace: WorkspaceModel
     @Bindable var appModel: AppModel
     @State var review = ReviewWorkspaceModel()
+    @State var layout = WorkspaceLayout()
     @State private var showsCleanup = false
     @State private var showsChatSettings = false
+    @State private var showsPriorityAuthors = false
+    @State private var priorityAuthorsText = ""
 
     private var account: String? { workspace.monitoredAccountLogin }
     private var allPRs: [PullRequestPresentation] {
-        var seen = Set<String>()
-        return (workspace.pullRequests(in: appModel.state) + appModel.state.pullRequestStacks.flatMap(\.pullRequests))
-            .filter { seen.insert($0.url.absoluteString).inserted }
+        return WorkspaceDashboard.active(appModel.state.needsYourReview + appModel.state.authoredPullRequests)
             .sorted {
                 WorkspaceReviewContext.precedes(workspace.reviewContext(for: $0), workspace.reviewContext(for: $1),
-                    in: workspace.document, priorityAuthors: workspace.reviewDocument.priorityAuthors)
+                    in: workspace.document, priorityAuthors: workspace.priorityAuthors)
             }
     }
-    private var selectedPR: PullRequestPresentation? { allPRs.first { $0.url == workspace.selectedSubject?.key.url } }
+    private var selectedPR: PullRequestPresentation? {
+        (workspace.pullRequests(in: appModel.state) + appModel.state.pullRequestStacks.flatMap(\.pullRequests)).first { $0.url == workspace.selectedSubject?.key.url }
+    }
     private var filtered: [PullRequestPresentation] {
         rows(in: review.queue).filter {
             review.search.isEmpty || "\($0.title) \($0.repositoryNameWithOwner) #\($0.number) \($0.author?.displayName ?? "")"
@@ -34,20 +37,29 @@ struct ReviewWorkspaceView: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            HStack(spacing: 0) {
-                sidebar.frame(width: 230)
-                Divider()
-                if review.mode == .manage {
-                    management
-                } else {
-                    ReviewDetailView(review: review, workspace: workspace, pullRequest: selectedPR,
-                        stacks: appModel.state.pullRequestStacks)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if review.showsAgent {
-                        Divider()
-                        ReviewChatPanel(review: review, workspace: workspace, pullRequest: selectedPR,
-                            showsSettings: $showsChatSettings)
-                            .frame(width: 290)
+            GeometryReader { geometry in
+                let widths = layout.resolvedWidths(availableWidth: geometry.size.width,
+                    minimumCenterWidth: review.mode == .manage ? 580 : 440, includesInspector: review.mode == .review)
+                HStack(spacing: 0) {
+                    if layout.showsSidebar {
+                        sidebar.frame(width: widths.sidebar)
+                        WorkspaceResizeDivider(width: Binding(get: { widths.sidebar }, set: { layout.sidebarWidth = $0 }),
+                            minimum: 180, maximum: min(520, geometry.size.width - 440 - (review.mode == .review ? widths.inspector : 0) - 20))
+                            .frame(width: WorkspaceLayout.dividerWidth)
+                    }
+                    if review.mode == .manage {
+                        management
+                    } else {
+                        ReviewDetailView(review: review, workspace: workspace, pullRequest: selectedPR,
+                            stacks: appModel.state.pullRequestStacks, layout: layout)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if layout.showsInspector {
+                            WorkspaceResizeDivider(width: Binding(get: { widths.inspector }, set: { layout.inspectorWidth = $0 }),
+                                minimum: 240, maximum: min(720, geometry.size.width - widths.sidebar - 440 - 20), direction: -1)
+                                .frame(width: WorkspaceLayout.dividerWidth)
+                            ReviewChatPanel(review: review, workspace: workspace, pullRequest: selectedPR,
+                                showsSettings: $showsChatSettings).frame(width: widths.inspector)
+                        }
                     }
                 }
             }
@@ -62,9 +74,24 @@ struct ReviewWorkspaceView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .frame(minWidth: 1100, minHeight: 700)
+        .frame(minWidth: 900, minHeight: 650)
         .sheet(isPresented: $showsCleanup) { WorktreeCleanupView(model: workspace.cleanup) }
         .sheet(isPresented: $showsChatSettings) { ReviewChatSettingsView() }
+        .sheet(isPresented: $showsPriorityAuthors) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Priority authors").font(.title2.bold())
+                Text("Give these authors medium automatic priority. Separate GitHub logins with commas.").foregroundStyle(.secondary)
+                TextField("GitHub logins", text: $priorityAuthorsText).textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("Cancel") { showsPriorityAuthors = false }
+                    Spacer()
+                    Button("Save") {
+                        workspace.setPriorityAuthors(priorityAuthorsText.split(separator: ",").map(String.init))
+                        showsPriorityAuthors = false
+                    }.buttonStyle(.borderedProminent)
+                }
+            }.padding(24).frame(width: 460)
+        }
         .onAppear {
             if workspace.selectedSubject != nil { review.mode = .review }
         }
@@ -91,12 +118,24 @@ struct ReviewWorkspaceView: View {
             Menu {
                 Button("Clean up merged worktrees…") { showsCleanup = true; workspace.cleanup.scan() }
                     .disabled(account == nil)
+                Button("Priority authors…") {
+                    priorityAuthorsText = workspace.priorityAuthors.joined(separator: ", ")
+                    showsPriorityAuthors = true
+                }
                 Button("Configure chat agent…") { showsChatSettings = true }
             } label: { Image(systemName: "ellipsis.circle") }.menuStyle(.borderlessButton).frame(width: 28)
-            if review.mode == .review {
-                Toggle(isOn: $review.showsAgent) { Image(systemName: "sidebar.right") }
-                    .toggleStyle(.button).help("Show or hide the agent panel")
+            Menu("Layout") {
+                Toggle("Show PR sidebar", isOn: $layout.showsSidebar)
+                Toggle("Show file list", isOn: $layout.showsFileList)
+                Toggle("Show chat", isOn: $layout.showsInspector)
+                Divider()
+                Button("Focus diff") {
+                    review.mode = .review; review.tab = .changes
+                    layout.showsSidebar = false; layout.showsFileList = false; layout.showsInspector = false
+                }
+                Button("Reset layout") { layout.reset() }
             }
+
         }.padding(.horizontal, 18).padding(.vertical, 12)
             .background(Color(nsColor: .controlBackgroundColor))
     }
@@ -151,62 +190,99 @@ struct ReviewWorkspaceView: View {
     }
 
     private var management: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(review.queue.rawValue).font(.largeTitle.weight(.semibold))
-                    Text("\(filtered.count) pull requests · Prioritized for your next action")
-                        .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Pull request dashboard").font(.largeTitle.weight(.semibold))
+                        Text("\(allPRs.count) open · \(rows(in: .requested).count) requested reviews · \(rows(in: .mine).count) authored")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                 }
-                Spacer()
-            }
-            HStack {
-                Label("Pull request", systemImage: "arrow.triangle.pull").frame(maxWidth: .infinity, alignment: .leading)
-                Text("Priority").frame(width: 140, alignment: .leading)
-                Text("Age / activity").frame(width: 145, alignment: .leading)
-                Text("Next action").frame(width: 180, alignment: .leading)
-            }.font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 12)
-            Divider()
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(filtered) { pr in
-                        let context = workspace.reviewContext(for: pr)
-                        let priority = workspace.reviewPriority(for: context)
-                        HStack(alignment: .top, spacing: 12) {
-                            Button { select(pr, openReview: true) } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(pr.title).font(.headline).foregroundStyle(.primary)
-                                    Text("\(pr.repositoryNameWithOwner)#\(pr.number) · @\(pr.author?.displayName ?? "unknown")")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                    Text("Requested: \(requestedReviewerSummary(for: pr))")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(priority.label).font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(priority.rank >= 3 ? Color.orange : Color.secondary)
-                                Text(priority.reason).font(.caption).foregroundStyle(.secondary)
-                            }.frame(width: 140, alignment: .leading)
-                            VStack(alignment: .leading, spacing: 5) {
-                                if let created = pr.createdAt { Text("Opened \(created, style: .relative) ago") }
-                                else { Text("Age unavailable") }
-                                Text("Updated \(pr.updatedAt, style: .relative) ago")
-                            }.font(.caption).foregroundStyle(.secondary).frame(width: 145, alignment: .leading)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(nextAction(pr)).font(.caption)
-                                if let job = workspace.latestReview(for: context) {
-                                    Text("Agent · \(job.displayStatus(currentSHA: pr.headSHA))").font(.caption).foregroundStyle(.secondary)
-                                }
-                                Button("Review PR") { select(pr, openReview: true) }.controlSize(.small)
-                            }.frame(width: 180, alignment: .leading)
-                        }.padding(12).contextMenu { prActions(pr) }
-                        Divider()
+                HStack {
+                    Picker("Queue", selection: $review.queue) {
+                        ForEach(ReviewWorkspaceQueue.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }.frame(maxWidth: 260)
+                    TextField("Search title, repository, author or number", text: $review.search)
+                        .textFieldStyle(.roundedBorder)
+                }
+                Text("\(review.queue.rawValue) · \(filtered.count) pull requests").font(.headline)
+                let groups = WorkspaceDashboard.groups(visible: filtered, stacks: appModel.state.pullRequestStacks)
+                ForEach(groups.filter { $0.stack != nil }) { group in
+                    DisclosureGroup(isExpanded: stackExpansion(group.id)) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 270), alignment: .top)], alignment: .leading, spacing: 12) {
+                            ForEach(group.members) { member in prCard(member.pullRequest, contextOnly: member.isNavigationContext) }
+                        }.padding(.top, 10)
+                    } label: {
+                        HStack {
+                            Label("Stack #\(group.stack?.number ?? 0)", systemImage: "square.stack.3d.up")
+                            Text(group.members.first?.pullRequest.repositoryNameWithOwner ?? "").foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(group.members.filter { !$0.isNavigationContext }.count) matching · \(group.stack?.size ?? group.members.count) members")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }.font(.subheadline.weight(.semibold))
+                    }.padding(14).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 270), alignment: .top)], alignment: .leading, spacing: 12) {
+                    ForEach(groups.filter { $0.stack == nil }) { group in
+                        if let member = group.members.first { prCard(member.pullRequest) }
                     }
                 }
+                if filtered.isEmpty { ContentUnavailableView("No pull requests in this view", systemImage: "tray", description: Text("Choose another queue or adjust the search.")) }
+                Text("Urgency follows manual priority, requested reviewers and priority authors. Age and GitHub activity are shown separately; activity may include bots.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @State private var collapsedStacks: Set<String> = []
+    private func stackExpansion(_ id: String) -> Binding<Bool> {
+        Binding(get: { !collapsedStacks.contains(id) }, set: { if $0 { collapsedStacks.remove(id) } else { collapsedStacks.insert(id) } })
+    }
+
+    private func prCard(_ pr: PullRequestPresentation, contextOnly: Bool = false) -> some View {
+        let priority = workspace.reviewPriority(for: workspace.reviewContext(for: pr))
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("#\(pr.number)").font(.caption.monospaced()).foregroundStyle(.secondary)
+                Spacer()
+                if review.local.isPinned(identity(pr)) { Image(systemName: "pin.fill").font(.caption) }
+                Text(reviewStatusSummary(for: pr)).font(.caption.weight(.medium))
             }
-            Text("Activity is GitHub's update time and may include bots. Open a PR to inspect its discussion and code.")
+            Button { select(pr, openReview: true) } label: {
+                Text(pr.title).font(.headline).foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
+            }.buttonStyle(.plain)
+            Text("\(pr.repositoryNameWithOwner) · @\(pr.author?.displayName ?? "unknown")")
                 .font(.caption).foregroundStyle(.secondary)
-        }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            if contextOnly {
+                Label("\(pr.state == .open ? "Outside this queue" : pr.state.rawValue.capitalized) · navigation context", systemImage: "link")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Requested: \(requestedReviewerSummary(for: pr))").font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(priority.label) urgency").font(.subheadline.weight(.semibold))
+                        .foregroundStyle(priority.rank >= 3 ? Color.orange : Color.secondary)
+                    Text(priority.reason).font(.caption).foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    if let created = pr.createdAt { Text("Opened \(created, style: .relative) ago") }
+                    else { Text("Age unavailable") }
+                    Text("Last activity \(pr.updatedAt, style: .relative) ago")
+                }.font(.caption).foregroundStyle(.secondary)
+                Divider()
+                Text(nextAction(pr)).font(.subheadline)
+            }
+            HStack {
+                Button(contextOnly ? "Open PR" : "Review PR") { select(pr, openReview: true) }
+                Spacer()
+                Link(destination: pr.url) { Image(systemName: "arrow.up.right.square") }.help("Open on GitHub")
+            }.controlSize(.small)
+        }.padding(14).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+            .overlay { RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.18)) }
+            .contextMenu { prActions(pr) }
     }
 
     private func identity(_ pr: PullRequestPresentation) -> ReviewIdentity {
@@ -224,24 +300,16 @@ struct ReviewWorkspaceView: View {
             case .requested: return !snoozed && appModel.state.needsYourReview.contains { $0.url == pr.url }
             case .attention:
                 return !snoozed && (appModel.state.needsYourReview.contains { $0.url == pr.url }
-                    || pr.reviewDecision == .changesRequested
-                    || workspace.latestReview(for: workspace.reviewContext(for: pr)).map {
-                        $0.status == .failed || $0.status == .completed
-                    } == true)
+                    || pr.reviewDecision == .changesRequested)
             }
         }
     }
     private func nextAction(_ pr: PullRequestPresentation) -> String {
         if pr.isDraft { return "Draft in progress" }
         if pr.reviewDecision == .changesRequested { return "Address review feedback" }
-        if let job = workspace.latestReview(for: workspace.reviewContext(for: pr)) {
-            if job.status == .failed { return "Agent needs attention" }
-            if job.status == .completed {
-                return job.headSHA == pr.headSHA ? "Read agent findings" : "Re-request agent review"
-            }
-        }
         if appModel.state.needsYourReview.contains(where: { $0.url == pr.url }) { return "Your review is requested" }
         if pr.reviewDecision == .approved { return "Approved · check merge readiness" }
+        if pr.requestedReviewers?.isEmpty == true && pr.reviewDecision == nil { return "Request reviewers" }
         return "Waiting for reviewers"
     }
     private func select(_ pr: PullRequestPresentation, openReview: Bool) {
@@ -251,6 +319,13 @@ struct ReviewWorkspaceView: View {
     @ViewBuilder private func prActions(_ pr: PullRequestPresentation) -> some View {
         Button("Open review") { select(pr, openReview: true) }
         Link("Open on GitHub", destination: pr.url)
+        if let key = try? PullRequestKey(url: pr.url) {
+            Menu("Manual priority") {
+                ForEach(BoardPriority.allCases, id: \.self) { priority in
+                    Button(priority == .none ? "Automatic" : priority.rawValue.capitalized) { workspace.setPriority(priority, for: .pullRequest(key)) }
+                }
+            }
+        }
         Button(review.local.isPinned(identity(pr)) ? "Unpin PR" : "Pin PR") {
             review.local.setPinned(!review.local.isPinned(identity(pr)), for: identity(pr))
         }

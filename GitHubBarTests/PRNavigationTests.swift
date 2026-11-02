@@ -7,43 +7,83 @@ import SwiftUI
 
 @MainActor
 final class PRNavigationTests: XCTestCase {
-    func testMenuSecondaryClickDoesNotPerformWorkspaceAction() throws {
+    func testStatusItemUsesAnchoredTransientPopover() throws {
         let fixture = fixture()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        var workspaceSelections: [BoardSubject?] = []
-        let controller = menu(workspace: fixture.model, actions: AppActions(
-            openWorkspace: { workspaceSelections.append($0) },
-            openGitHub: { _ in }
-        ))
+        let controller = menu(workspace: fixture.model, actions: AppActions())
         defer { NSStatusBar.system.removeStatusItem(controller.statusItem) }
-        let row = try XCTUnwrap(controller.statusMenu.items.first { $0.title.hasPrefix("#42:") }?.view)
-
-        row.rightMouseUp(with: mouseEvent(.rightMouseUp))
-
-        XCTAssertTrue(workspaceSelections.isEmpty, "Secondary click must never select the workspace")
+        XCTAssertNil(controller.statusItem.menu)
+        XCTAssertEqual(controller.popover.behavior, .transient)
+        XCTAssertNotNil(controller.popover.contentViewController)
+        XCTAssertNotNil(controller.statusItem.button?.action)
     }
 
-    func testMenuPrimaryKeyboardAndSecondaryHaveSeparateRoutes() throws {
+    func testWorkspaceRefreshRetainsPopoverHostingTree() throws {
         let fixture = fixture()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        var opened: [PullRequestPresentation] = []
-        var urls: [URL] = []
-        let controller = menu(workspace: fixture.model, actions: AppActions(
-            openPullRequest: { opened.append($0) }, openGitHub: { urls.append($0) }
-        ))
+        let controller = menu(workspace: fixture.model, actions: AppActions())
         defer { NSStatusBar.system.removeStatusItem(controller.statusItem) }
-        let item = try XCTUnwrap(controller.statusMenu.items.first { $0.title.hasPrefix("#42:") })
-        let row = try XCTUnwrap(item.view)
-        row.mouseUp(with: mouseEvent(.leftMouseUp))
-        XCTAssertEqual(opened, [pullRequest()])
-        XCTAssertTrue(urls.isEmpty)
-        row.rightMouseUp(with: mouseEvent(.rightMouseUp))
-        XCTAssertEqual(opened.count, 1)
-        XCTAssertEqual(urls, [pullRequest().url])
-        XCTAssertTrue(row.accessibilityPerformPress())
-        XCTAssertEqual(opened.count, 2)
-        XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(item.action), to: item.target, from: item))
-        XCTAssertEqual(opened.count, 3)
+        let content = try XCTUnwrap(controller.popover.contentViewController)
+        controller.rebuildStatusMenu()
+        controller.setRegisteredShortcut(.openMenu)
+        XCTAssertTrue(controller.popover.contentViewController === content,
+                      "Workload refresh must preserve SwiftUI scroll and stack expansion state")
+    }
+
+    func testNativePopoverToggleRetainsContentAndEscapeDismisses() async throws {
+        let fixture = fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let controller = menu(workspace: fixture.model, actions: AppActions())
+        defer {
+            controller.closeMenu()
+            controller.appModel.stop()
+            NSStatusBar.system.removeStatusItem(controller.statusItem)
+        }
+        let content = try XCTUnwrap(controller.popover.contentViewController)
+        // Test hosts can receive zero-height status-item scene windows when the menu bar is hidden.
+        // Use a visible native anchor to exercise presentation independently of system bar visibility.
+        let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 500, height: 300),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let anchor = NSButton(frame: NSRect(x: 200, y: 200, width: 30, height: 24))
+        window.contentView?.addSubview(anchor)
+        window.makeKeyAndOrderFront(nil)
+        defer { window.close() }
+        func show() {
+            controller.showMenu()
+            if controller.statusItem.button?.window?.frame.height == 0 {
+                // A zero-height system scene cannot anchor a popover. Use the same popover and
+                // delegate lifecycle with our visible window for native presentation.
+                controller.popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+                controller.popover.contentViewController?.view.window?.makeKey()
+            }
+        }
+        show()
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertTrue(controller.popover.isShown)
+        controller.appModel.start()
+        controller.appModel.send(.manualRefresh)
+        for _ in 0..<100 {
+            if case .connectionRequired = controller.appModel.state.accountConnection { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        guard case .connectionRequired = controller.appModel.state.accountConnection else {
+            XCTFail("The in-memory unavailable account fixture should publish the refresh result")
+            return
+        }
+        XCTAssertTrue(controller.popover.contentViewController === content)
+        XCTAssertTrue(controller.popover.isShown, "Refresh result publication must not dismiss the open popover")
+        controller.toggleMenu()
+        XCTAssertFalse(controller.popover.isShown)
+        show()
+        XCTAssertTrue(controller.popover.isShown)
+        let popoverWindow = try XCTUnwrap(content.view.window)
+        let escape = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: popoverWindow.windowNumber, context: nil,
+            characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53))
+        NSApp.sendEvent(escape)
+        try await Task.sleep(for: .milliseconds(30))
+        XCTAssertFalse(controller.popover.isShown)
     }
 
     func testExternalSearchSelectionHydratesBoardAndSurvivesReload() async throws {
@@ -118,53 +158,56 @@ final class PRNavigationTests: XCTestCase {
         XCTAssertTrue(fixture.model.pullRequests(in: state).isEmpty)
     }
 
-    func testStackSummaryOpensDisplayedPRAndRetainsSubmenu() throws {
-        let fixture = fixture()
-        defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        var opened: [PullRequestPresentation] = []
-        let controller = menu(workspace: fixture.model, actions: AppActions(
-            openPullRequest: { opened.append($0) }, openGitHub: { _ in }
-        ), stack: true)
-        defer { NSStatusBar.system.removeStatusItem(controller.statusItem) }
-        let item = try XCTUnwrap(controller.statusMenu.items.first { $0.title.hasPrefix("#42:") })
-        let submenu = try XCTUnwrap(item.submenu)
-        let row = try XCTUnwrap(item.view)
-        row.mouseUp(with: mouseEvent(.leftMouseUp))
-        XCTAssertEqual(opened.map(\.number), [42])
-        XCTAssertTrue(submenu.items.contains { $0.title == "View stack on GitHub ↗" })
-        XCTAssertTrue(submenu.items.contains { $0.title == "Workspace for stack…" })
-        let member = try XCTUnwrap(submenu.items.first { $0.title.hasPrefix("#42:") }?.view)
-        XCTAssertTrue(member.accessibilityPerformPress())
-        XCTAssertEqual(opened.map(\.number), [42, 42])
+    func testStackEntriesAreGroupedWithoutHidingMembers() {
+        let pr = pullRequest(stack: true)
+        let stack = PullRequestStack(id: "stack", number: 42, pullRequests: [pr])
+        let entries = WorkloadSection.entries(pullRequests: [pr, pr], stacks: [stack])
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries.first?.pullRequest, pr)
+        XCTAssertEqual(entries.first?.stack?.pullRequests, [pr])
     }
 
-    func testPinnedSessionKeepsExplicitJumpWithoutTakingOverPrimaryClick() async throws {
-        let fixture = fixture()
-        defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        let subject = BoardSubject.pullRequest(try PullRequestKey(url: pullRequest().url))
-        let store = LocalWorkspaceStore(directoryURL: fixture.directory)
-        try await store.update { document in
-            document.setSession(AgentSessionLink(subject: subject, agent: .codex,
-                worktreePath: fixture.directory.path, tmuxSessionName: "test-session", state: .running))
-        }
-        await fixture.model.reload()
+    func testPopoverRowPrimaryAndSecondaryClicksHaveSeparateRoutes() async throws {
         var opened: [PullRequestPresentation] = []
-        let controller = menu(workspace: fixture.model, actions: AppActions(
-            openPullRequest: { opened.append($0) }, openGitHub: { _ in }
-        ))
-        defer { NSStatusBar.system.removeStatusItem(controller.statusItem) }
-        let item = try XCTUnwrap(controller.statusMenu.items.first { $0.title.hasPrefix("#42:") })
-        XCTAssertTrue(item.submenu?.items.contains { $0.title == "Jump to Codex session" } == true)
-        item.view?.mouseUp(with: mouseEvent(.leftMouseUp))
-        XCTAssertEqual(opened, [pullRequest()])
+        var urls: [URL] = []
+        let pr = pullRequest()
+        let host = NSHostingView(rootView: PullRequestRow(pullRequest: pr, showsRepository: true,
+            actions: AppActions(openPullRequest: { opened.append($0) }, openGitHub: { urls.append($0) })))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 100),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.close() }
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        try await Task.sleep(for: .milliseconds(50))
+        host.layoutSubtreeIfNeeded()
+        func send(_ type: NSEvent.EventType) {
+            let point = host.convert(NSPoint(x: 100, y: host.bounds.midY), to: nil)
+            let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)!
+            NSApp.sendEvent(event)
+        }
+        send(.leftMouseDown)
+        send(.leftMouseUp)
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(opened, [pr])
+        XCTAssertTrue(urls.isEmpty)
+        send(.rightMouseDown)
+        send(.rightMouseUp)
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(opened, [pr])
+        XCTAssertEqual(urls, [pr.url])
     }
 
     private func menu(workspace: WorkspaceModel, actions: AppActions, stack: Bool = false) -> StatusItemController {
         var state = AppPresentationState.empty
+        state.accountConnection = .connected(login: "reviewer", accessCoverage: AccessCoverage(isComplete: true))
         state.needsYourReview = [pullRequest(stack: stack)]
         if stack { state.pullRequestStacks = [PullRequestStack(id: "stack", number: 42, pullRequests: state.needsYourReview)] }
         return StatusItemController(
-            appModel: AppModel(engine: WorkloadEngine(), initialState: state),
+            appModel: AppModel(engine: WorkloadEngine(initialState: state), initialState: state),
             actions: actions, workspaceModel: workspace, avatarImageCache: AvatarImageCache()
         )
     }

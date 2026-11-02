@@ -2,15 +2,18 @@ import Foundation
 
 public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
     private let transport: any GitHubTransport
+    private let approvalRequirementsClient: any GitHubApprovalRequirementsClient
     private let hydrationBatchSize: Int
     private let hydrationConcurrency: Int
 
     public init(
         transport: any GitHubTransport = URLSessionGitHubTransport(),
+        approvalRequirementsClient: any GitHubApprovalRequirementsClient = RESTGitHubApprovalRequirementsClient(),
         hydrationBatchSize: Int = 20,
         hydrationConcurrency: Int = 4
     ) {
         self.transport = transport
+        self.approvalRequirementsClient = approvalRequirementsClient
         self.hydrationBatchSize = max(1, hydrationBatchSize)
         self.hydrationConcurrency = max(1, hydrationConcurrency)
     }
@@ -95,6 +98,34 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         )
         hydratedRecords.append(contentsOf: stackMemberOutput.value)
         metadata.merge(stackMemberOutput.metadata)
+
+        // Cache only within this Reconciliation so policy changes are observed next refresh.
+        var requirementsByBranch: [String: [GitHubApprovalRequirement]] = [:]
+        var unavailableBranches: Set<String> = []
+        for index in hydratedRecords.indices {
+            let record = hydratedRecords[index]
+            guard record.state == .open, !record.isDraft, record.reviewDecision == nil,
+                  record.reviewsComplete, !record.reviewsPageInfo.hasNextPage,
+                  record.reviews.contains(where: { $0.state == .approved }),
+                  let baseBranch = record.baseBranch, record.baseRefKnown else { continue }
+            let key = "\(record.repositoryNameWithOwner)/\(baseBranch)"
+            if requirementsByBranch[key] == nil && !unavailableBranches.contains(key) {
+                do {
+                    requirementsByBranch[key] = try await approvalRequirementsClient.requirements(
+                        repository: record.repositoryNameWithOwner, baseBranch: baseBranch, account: account)
+                } catch {
+                    unavailableBranches.insert(key)
+                    metadata.warnings.append("approval requirements unavailable")
+                }
+            }
+            guard var requirements = requirementsByBranch[key] else { continue }
+            if let legacy = record.legacyApprovalRequirement { requirements.append(legacy) }
+            hydratedRecords[index].reviewDecision = ApprovalClassification.decision(
+                aggregate: record.reviewDecision, author: record.author.displayName, authorIsHuman: record.authorIsHuman,
+                headSHA: record.headSHA, reviewsComplete: record.reviewsComplete,
+                reviews: record.reviews.map { ApprovalReview(login: $0.author?.login, state: $0.state.rawValue,
+                    canPush: $0.authorCanPushToRepository, commit: $0.commit?.oid) }, requirements: requirements)
+        }
 
         let monitoredReviewerKeys = Set(
             ["user:\(account.login.lowercased())"] + teams.map(\.reviewerKey)
@@ -295,7 +326,10 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "pull-request hydration incomplete")
         var records = page.data.nodes.compactMap { $0.flatMap(HydratedRecord.init) }
         if page.hasErrors {
-            for index in records.indices { records[index].requestsComplete = false }
+            for index in records.indices {
+                records[index].requestsComplete = false
+                records[index].reviewsComplete = false
+            }
         }
 
         for index in records.indices {
@@ -320,9 +354,13 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                         hasErrors: rosterPage.hasErrors,
                         warning: "review roster pagination incomplete"
                     )
-                    if rosterPage.hasErrors { records[index].requestsComplete = false }
+                    if rosterPage.hasErrors {
+                        records[index].requestsComplete = false
+                        records[index].reviewsComplete = false
+                    }
                     guard let pullRequest = rosterPage.data.node else {
                         records[index].requestsComplete = false
+                        records[index].reviewsComplete = false
                         metadata.warnings.append("review roster pagination incomplete")
                         break
                     }
@@ -340,9 +378,14 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                     if let reviews = pullRequest.reviews {
                         records[index].reviews.append(contentsOf: reviews.nodes)
                         records[index].reviewsPageInfo = reviews.pageInfo
+                    } else if includeReviews {
+                        records[index].reviewsComplete = false
+                        metadata.warnings.append("review roster pagination incomplete")
+                        break
                     }
                 } catch {
                     records[index].requestsComplete = false
+                    records[index].reviewsComplete = false
                     metadata.warnings.append("review roster pagination incomplete")
                     break
                 }
@@ -653,7 +696,9 @@ private extension GraphQLGitHubWorkloadClient {
           createdAt
           updatedAt
           headRefOid
-          author { login avatarUrl }
+          baseRefName
+          baseRef { branchProtectionRule { requiresApprovingReviews requiredApprovingReviewCount dismissesStaleReviews requiresCodeOwnerReviews requiresLastPushApproval: requireLastPushApproval } }
+          author { __typename login avatarUrl }
           repository { id nameWithOwner }
           stack { id number size }
           stackEntry { position }
@@ -673,6 +718,8 @@ private extension GraphQLGitHubWorkloadClient {
           reviews(first: 100) {
             nodes {
               state
+              authorCanPushToRepository
+              commit { oid }
               author { login avatarUrl }
             }
             pageInfo { hasNextPage endCursor }
@@ -726,6 +773,8 @@ private extension GraphQLGitHubWorkloadClient {
           reviews(first: 100, after: $reviewsCursor) @include(if: $includeReviews) {
             nodes {
               state
+              authorCanPushToRepository
+              commit { oid }
               author { login avatarUrl }
             }
             pageInfo { hasNextPage endCursor }
@@ -999,12 +1048,34 @@ private struct PullRequestDTO: Decodable, Sendable {
     let createdAt: String?
     let updatedAt: String
     let headRefOid: String?
+    let baseRefName: String?
+    let baseRef: BaseRefDTO?
     let author: ActorDTO?
     let repository: RepositoryDTO
     let stack: PullRequestStackIdentityDTO?
     let stackEntry: PullRequestStackEntryIdentityDTO?
     let reviewRequests: ReviewRequestConnectionDTO
     let reviews: ReviewConnectionDTO
+}
+
+private struct BaseRefDTO: Decodable, Sendable {
+    let branchProtectionRule: BranchProtectionDTO?
+}
+private struct BranchProtectionDTO: Decodable, Sendable {
+    let requiresApprovingReviews: Bool
+    let requiredApprovingReviewCount: Int?
+    let dismissesStaleReviews: Bool
+    let requiresCodeOwnerReviews: Bool
+    let requiresLastPushApproval: Bool
+
+    var requirementsKnown: Bool { !requiresApprovingReviews || requiredApprovingReviewCount != nil }
+
+    var requirement: GitHubApprovalRequirement? {
+        guard requiresApprovingReviews, let count = requiredApprovingReviewCount else { return nil }
+        return GitHubApprovalRequirement(minimumApprovals: count,
+            dismissesStaleApprovals: dismissesStaleReviews, requiresCodeOwner: requiresCodeOwnerReviews,
+            requiresLastPushApproval: requiresLastPushApproval)
+    }
 }
 
 private struct PullRequestStackIdentityDTO: Decodable, Sendable {
@@ -1055,7 +1126,11 @@ private struct ReviewConnectionDTO: Decodable, Sendable {
 private struct ReviewDTO: Decodable, Sendable {
     let author: ActorDTO?
     let state: ReviewStateDTO
+    let authorCanPushToRepository: Bool?
+    let commit: ReviewCommitDTO?
 }
+
+private struct ReviewCommitDTO: Decodable, Sendable { let oid: String }
 
 private enum ReviewStateDTO: String, Decodable, Sendable {
     case approved = "APPROVED"
@@ -1068,9 +1143,11 @@ private enum ReviewStateDTO: String, Decodable, Sendable {
 private struct ActorDTO: Decodable, Sendable {
     let login: String
     let avatarURL: String?
+    let typeName: String?
 
     private enum CodingKeys: String, CodingKey {
         case login
+        case typeName = "__typename"
         case avatarURL = "avatarUrl"
     }
 }
@@ -1103,7 +1180,7 @@ private struct HydratedRecord: Sendable {
     let author: PullRequestAuthorPresentation
     let isDraft: Bool
     let state: PullRequestState
-    let reviewDecision: PullRequestReviewDecision?
+    var reviewDecision: PullRequestReviewDecision?
     let stackMembership: PullRequestStackMembership?
     let number: Int
     let title: String
@@ -1111,6 +1188,11 @@ private struct HydratedRecord: Sendable {
     let createdAt: Date?
     let updatedAt: Date
     let headSHA: String?
+    let baseBranch: String?
+    let baseRefKnown: Bool
+    let authorIsHuman: Bool
+    let legacyApprovalRequirement: GitHubApprovalRequirement?
+    var reviewsComplete = true
     var requestsComplete = true
     var requestedReviewers: [RequestedReviewerDTO]
     var reviews: [ReviewDTO]
@@ -1148,6 +1230,10 @@ private struct HydratedRecord: Sendable {
         self.createdAt = dto.createdAt.flatMap(parseGitHubDate)
         self.updatedAt = updatedAt
         headSHA = dto.headRefOid
+        baseBranch = dto.baseRefName
+        baseRefKnown = dto.baseRef != nil && (dto.baseRef?.branchProtectionRule?.requirementsKnown ?? true)
+        authorIsHuman = dto.author?.typeName == "User"
+        legacyApprovalRequirement = dto.baseRef?.branchProtectionRule?.requirement
         requestedReviewers = dto.reviewRequests.nodes.compactMap(\.requestedReviewer)
         requestsComplete = dto.reviewRequests.nodes.allSatisfy { $0.requestedReviewer?.presentation != nil }
         reviews = dto.reviews.nodes

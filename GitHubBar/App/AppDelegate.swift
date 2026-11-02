@@ -9,7 +9,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController?
     private var workspaceWindowController: WorkspaceWindowController?
     private var workspaceModel: WorkspaceModel?
-    private var reviewAgentModel: ReviewAgentModel?
     private var searchModel: PRSearchModel?
     private var searchWindowController: PRSearchWindowController?
     private var applicationMenuController: ApplicationMenuController?
@@ -36,7 +35,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let searchModel = PRSearchModel(service: CorePRSearchService())
         let workspaceStore = LocalWorkspaceStore()
         let reviewStore = AgentReviewStore()
-        let reviewAgentModel = ReviewAgentModel(store: reviewStore)
         let workspaceModel = WorkspaceModel(
             store: workspaceStore,
             sessions: AgentSessionManager(store: workspaceStore),
@@ -51,9 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let searchWindowController = PRSearchWindowController(model: searchModel, openPullRequest: openPullRequest)
         let settingsWindowController = SettingsWindowController(
             appModel: model,
-            updateController: UpdateControllerFactory.make(),
-            reviewAgentModel: reviewAgentModel,
-            workspaceModel: workspaceModel
+            updateController: UpdateControllerFactory.make()
         )
         let actions = AppActions(
             openSettings: { [weak settingsWindowController] in settingsWindowController?.show() },
@@ -69,8 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             actions: actions,
             workspaceModel: workspaceModel,
             avatarImageCache: AvatarImageCache(),
-            searchModel: searchModel,
-            reviewAgentModel: reviewAgentModel
+            searchModel: searchModel
         )
         let applicationMenuController = ApplicationMenuController(appModel: model, actions: actions)
         applicationMenuController.install()
@@ -80,7 +75,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.settingsWindowController = settingsWindowController
         self.workspaceWindowController = workspaceWindowController
         self.workspaceModel = workspaceModel
-        self.reviewAgentModel = reviewAgentModel
         self.searchModel = searchModel
         self.searchWindowController = searchWindowController
         self.applicationMenuController = applicationMenuController
@@ -97,14 +91,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         model.start()
-        workspaceModel.onDocumentChange = { [weak statusItemController, weak workspaceModel, weak reviewAgentModel] in
+        workspaceModel.onDocumentChange = { [weak statusItemController] in
             statusItemController?.rebuildStatusMenu()
-            if workspaceModel?.reviewDocument.enabled == false {
-                Task { await reviewAgentModel?.stop() }
-            }
         }
         workspaceModel.start()
         model.send(.launch)
+        workspaceWindowController.show()
 
         if ProcessInfo.processInfo.environment["GITHUBBAR_OPEN_MENU"] == "1" {
             DispatchQueue.main.async {
@@ -124,6 +116,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        workspaceWindowController?.show()
+        return true
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
     func applicationWillTerminate(_ notification: Notification) {
         appModel?.stop()
         workspaceModel?.stop()
@@ -133,7 +132,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             searchModel?.pause()
             await searchModel?.pendingCommand?.value
-            await reviewAgentModel?.stop()
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater

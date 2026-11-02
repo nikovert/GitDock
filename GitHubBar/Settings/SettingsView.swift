@@ -6,8 +6,6 @@ struct SettingsView: View {
     @AppStorage(AppearanceController.defaultsKey) private var appearance = AppearancePreference.system.rawValue
     @Bindable var appModel: AppModel
     @Bindable var updateModel: UpdateModel
-    @Bindable var reviewAgentModel: ReviewAgentModel
-    @Bindable var workspaceModel: WorkspaceModel
     @State private var showsChatSettings = false
 
     var body: some View {
@@ -27,10 +25,6 @@ struct SettingsView: View {
 
                 SettingsSection(title: "Repositories", systemImage: "folder") {
                     PinnedRepositoriesSettingsView(appModel: appModel)
-                }
-
-                SettingsSection(title: "Review agent", systemImage: "terminal") {
-                    ReviewAgentSettingsView(model: reviewAgentModel, workspace: workspaceModel)
                 }
 
                 SettingsSection(title: "Workspace chat", systemImage: "bubble.left.and.bubble.right") {

@@ -1,76 +1,101 @@
 # Manage and review pull requests
 
-Open **Workspace Board** from GitHubBar, or click a PR in the menu or search results.
-The larger workspace has **Manage PRs** and **Review** modes. Existing sessions,
-notes, tags, setup, and cleanup remain available.
+GitHubBar opens its dashboard at launch and appears in the Dock and Cmd+Tab.
+Closing the window leaves the menu bar app running. Click its Dock icon to restore
+the same workspace. The status icon opens an anchored popover; refresh updates the
+existing contents. Escape, an outside click, or the status icon closes it.
 
-## Manage PRs
+## Dashboard and layout
 
-Use the sidebar to switch between PRs needing attention, your PRs, requested
-reviews, pinned PRs, snoozed PRs, and all PRs in your workload. Search this list by
-title, repository, author, or number. The existing extended search still searches
-outside your workload and opens its results in the same workspace.
+Use the sidebar or dashboard queue picker for needs attention, your PRs, requested
+reviews, pinned, snoozed, and all PRs. Search by title, repository, author, or number.
+The workload follows All/Pinned repository scope. Extended search can open a PR
+outside that workload without adding it to the dashboard.
 
-Rows show the title and author, requested reviewers, priority and its reason, age,
-GitHub activity, and the next action. Age comes from GitHub's created timestamp;
-old cached data can show "Age unavailable" until refreshed. Activity is GitHub's
-update time, which can include bots; it is not a last-human-interaction metric.
+Cards show title, repository, author, review decision, requested reviewers, age,
+last GitHub activity, urgency and its reason, and next action. Activity can include
+bots. Automatic urgency uses requested humans and priority authors; manual PR and
+stack priority takes precedence. Age is visible separately. Set priority authors
+from the toolbar's **… → Priority authors…** control.
 
-Right-click a PR in the workspace for pinning, a 24-hour snooze, GitHub navigation,
-or stack management. Pins and snoozes are local and specific to your monitored
-account. Menu-bar and search-result right-clicks still open GitHub directly.
+Native GitHub stacks expand into ordered member cards. Closed, merged, and members
+outside the current queue are labelled navigation context. Each matching open PR
+appears once. No inferred relationships are added.
 
-## Review code
+Approved follows the required approval count, independently of outstanding requests
+to other reviewers. GitHub's explicit aggregate decision takes precedence. When it
+is absent, GitHubBar can verify eligible approvals against the active branch rules;
+unavailable policy or unverified extra review requirements remain conservative.
+Conflicts, CI, and unresolved conversations are separate merge-readiness checks.
 
-- **Overview** shows the description, priority reason, review request, and retained
-  drafts from earlier diffs.
-- **Changes** shows files and unified or split diffs. Drag the file divider to
-  resize the list; use horizontal scrolling for wide code. Hide the agent panel
-  with the top-right sidebar button when you need more room.
-- **Threads** shows GitHub conversation and inline review comments, plus your local
-  inline drafts. Links open the original GitHub thread.
-- **Workspace** contains the existing notes, tags, priorities, review policies,
-  stack members, terminal sessions, and worktree configuration.
+Right-click a card to set manual priority, pin, snooze for 24 hours, open GitHub, or
+manage its native stack. Pins and snoozes are local and account-specific.
 
-Click a diff line to draft an inline comment or ask the agent about that line.
-Drafts are saved locally. **Submit review…** opens a summary and decision sheet;
-**Submit to GitHub** is the action that publishes the review. A summary is required
-for a Comment or Request changes review. Approving your own PR is not offered.
+Drag the wide dividers between PR sidebar, content, file list, and chat. Hover gives
+a resize cursor and highlight; focused dividers also support arrow keys. **Layout**
+contains labelled panel visibility controls, **Focus diff**, and **Reset layout**.
+Widths and visibility survive reopening; smaller windows clamp panels to the space
+available without losing preferred widths.
 
-Drafts and viewed-file state are tied to the account, PR, head, and base commits. New
-commits or a changed base start separate state; older drafts remain accessible in
-Overview, and are never automatically transplanted to new lines. The submission
-sheet stays bound to the PR and diff it was opened for. Failed submissions retain drafts.
-If a submission's outcome is uncertain, inspect GitHub before retrying.
+## Review code and discussion
 
-**Mark reviewed** saves a local baseline without posting anything. Submitting a
-review also saves its head as the baseline. **Since my last review** compares that
-commit with the current head. Inline drafting is disabled in comparison mode to
-avoid posting comparison coordinates as PR coordinates. GitHub may compare from a
-merge base after a force-push; a notice explains this when detected.
+- **Overview** shows the description, checks, urgency reason, and retained drafts
+  from earlier head/base revisions.
+- **Changes** shows unified or split diffs. Click a line to save a local inline
+  draft or ask chat about the selection. Draft counts appear in the file list.
+  Local drafts and anchored GitHub conversations appear beneath their exact lines.
+- **Threads** shows local drafts first, inline conversations grouped by their root,
+  then general PR discussion. Cards include author, time, file/line, and GitHub links.
+  **Show in diff** opens the file and scrolls to the anchor. Draft edit/remove controls
+  operate on the same saved record as Changes.
+- **Workspace** contains local notes, tags, priorities, native stack members,
+  terminal sessions, worktree configuration, and cleanup.
 
-Binary files, omitted/truncated patches, and API pagination limits are explicitly
-reported. Inline drafting is available only with a complete file list and a complete
-patch for the selected file. Use the GitHub link for missing code. Local review state is stored in
-this Mac's app preferences and is not synchronized with GitHub's viewed state.
+Outdated comments, missing roots, unknown sides, and unavailable patches remain in
+Threads with an explanation. Old filenames and original lines are never guessed
+as current anchors. Binary, omitted, truncated patches and API limits are disclosed.
+Inline posting requires a complete current PR file list and complete file patch.
 
-## Ask an agent
+## Publish explicitly
 
-Open **Settings → Workspace chat → Configure chat agent**, or use the gear in the
-agent panel. **Use an installed CLI…** loads a preset for an installed and locally
-authenticated Codex or Claude CLI. The bundled adapter needs Python 3. No provider
-request is made when selecting a preset or checking paths.
+The shared multiline composer uses **Enter** for its labelled action and
+**Ctrl+Enter** for a newline. Input-method composition can finish without sending.
+Inline editors **Save draft** locally; publication requires **Post to GitHub**.
 
-Alternatively, connect any command supporting the [JSON chat protocol](agent-chat.md).
-The adapter receives the PR description, a bounded diff excerpt, selected-line
-context, and recent conversation. It returns an answer and optional file/line
-citations. Click a citation to navigate if that line is present in the loaded diff.
-Answers appear when complete; **Stop** cancels a request.
+Each draft's **Post to GitHub** submits only that inline comment as a Comment review.
+Other drafts and the review summary stay untouched. **Submit review…** opens a batch
+sheet with Comment, Approve, or Request changes. Comment accepts inline comments
+without a summary. Request changes requires a summary; approval may omit it.
+Approving your own PR is not offered.
 
-Chat is advisory. Review-worker fix, comment, and reply permissions remain separate;
-asking a question does not request a background review or publish a comment. Existing
-terminal-only agents still work through **Jump to session** in Workspace. The worker
-queue uses its existing configuration; enabling it does not enable chat automatically.
+Progress and errors stay visible. Confirmed success clears only the submitted
+versions of comments/summary, preserving edits made while posting, and refreshes
+GitHub discussion. Failed or ambiguous writes retain drafts and are never retried
+automatically. Inspect GitHub before explicitly retrying an uncertain write.
 
-Use the toolbar's **… → Clean up merged worktrees…** for the existing verified
-cleanup flow, including titles/descriptions and explicit session choices.
+Drafts and viewed-file state are tied to account, PR, head, and base commits. New
+commits or a changed base start separate state; older drafts stay in Overview and
+are never transplanted. The submission sheet stays bound to its original identity.
+**Mark reviewed** and successful batch reviews save a local comparison baseline;
+individual comment posting does not mark the whole PR reviewed. **Since my last
+review** compares that commit to the head; inline drafting is disabled in comparisons.
+
+## Local chat and terminal sessions
+
+Choose **Settings → Workspace chat → Configure chat agent**, or the chat gear.
+The provider picker detects Codex and Claude, preferring Codex when both are installed,
+and remembers the saved choice. Presets use your existing CLI sign-in and Python 3.
+**Test connection** performs an explicit advisory request. A custom JSON adapter
+remains supported; see the [protocol](agent-chat.md).
+
+Chat sends the PR description, bounded diff context, selected code, and recent
+conversation. Partial/truncated context is labelled. Answers render Markdown and
+code; file citations navigate only to available current diff coordinates. **Stop**
+cancels; failed/cancelled questions have an explicit retry without duplicating history.
+Chat stays advisory; publishing is performed by workspace controls.
+
+Ordinary Codex/Claude worktree and tmux actions, notes, and saved sessions remain.
+The Giles background worker integration has been retired from the app: no launch,
+polling, request/re-request, job status, connection, or permission controls. Legacy
+worker files and external installations are left in place. The old CLI protocol
+remains for compatibility and is not driven by the app.

@@ -60,158 +60,30 @@ final class WorkspaceReviewTests: XCTestCase {
         XCTAssertEqual(entry?.tagIDs, ["blocked"])
     }
 
-    func testSavedPriorityAuthorChangesDisplayedLabelAndSorting() async throws {
+    func testLegacyWorkerFileIsNeverChangedOrUsedAsCurrentMetadata() async throws {
         let fixture = fixture()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        let older = context(number: 1, updatedAt: 10)
-        var configured = context(number: 2, updatedAt: 20)
-        configured.authorLogin = "COLLEAGUE"
-        await fixture.model.reload()
-        XCTAssertEqual(fixture.model.reviewPriority(for: configured).label, "Low")
-
-        _ = try await fixture.reviews.saveConnection(ReviewAgentConnection(), priorityAuthors: ["colleague"])
-        await fixture.model.reload()
-
-        XCTAssertEqual(fixture.model.reviewPriority(for: configured).label, "Medium")
-        let sorted = [older, configured].sorted {
-            WorkspaceReviewContext.precedes($0, $1, in: fixture.model.document,
-                priorityAuthors: fixture.model.reviewDocument.priorityAuthors)
-        }
-        XCTAssertEqual(sorted.map(\.prURL), [configured.prURL, older.prURL])
-    }
-
-    func testWorkloadSyncDoesNotNeedWindowOrEnableIntegration() async throws {
-        let fixture = fixture()
-        defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        var state = AppPresentationState.empty
-        state.accountConnection = .connected(login: "me", accessCoverage: AccessCoverage(isComplete: true))
-        state.needsYourReview = [pullRequest(requested: [reviewer("me", .person)])]
-
-        fixture.model.updateWorkload(state)
-        await eventually { fixture.model.reviewDocument.contexts.count == 1 }
-
-        let loaded = try await fixture.reviews.load()
-        XCTAssertFalse(loaded.enabled)
-        XCTAssertEqual(loaded.accountLogin, "")
-        XCTAssertEqual(loaded.contexts.values.first?.priority(in: .empty).rank, 3)
-        XCTAssertNotNil(fixture.model.reviewUnavailableReason(for: fixture.model.reviewContext(for: state.needsYourReview[0])))
-    }
-
-    func testAccountMismatchRejectsEnableAndContextSync() async throws {
-        let fixture = fixture()
-        defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        try await fixture.reviews.update { $0.accountLogin = "someone-else" }
+        var context = context(number: 1, updatedAt: 100)
+        context.headSHA = "stale-worker-head"
+        let oldContext = context
+        try await fixture.reviews.update { $0.contexts[oldContext.prURL] = oldContext; $0.enabled = true }
+        let file = fixture.directory.appendingPathComponent("agent-reviews.json")
+        let before = try Data(contentsOf: file)
         await fixture.model.reload()
         fixture.model.updateWorkload(state())
-        await eventually { fixture.model.errorMessage != nil }
-        fixture.model.errorMessage = nil
-
-        fixture.model.configureReviews(enabled: true)
-        await eventually { fixture.model.errorMessage != nil }
-
-        let loaded = try await fixture.reviews.load()
-        XCTAssertEqual(loaded.accountLogin, "someone-else")
-        XCTAssertFalse(loaded.enabled)
-        XCTAssertTrue(loaded.contexts.isEmpty)
-        XCTAssertTrue(fixture.model.reviewAccountMismatch)
-    }
-
-    func testPollingPreservesNewerWorkerContext() async throws {
-        let fixture = fixture()
-        defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        var fresh = context(number: 1, updatedAt: 100)
-        fresh.headSHA = "worker-new-head"
-        let workerContext = fresh
-        try await fixture.reviews.update { $0.contexts[workerContext.prURL] = workerContext }
         await fixture.model.reload()
-        var callbacks = 0
-        fixture.model.onDocumentChange = { callbacks += 1 }
-
-        fixture.model.updateWorkload(state())
-        await fixture.model.reload()
-        await fixture.model.reload()
-
-        let loaded = try await fixture.reviews.load()
-        XCTAssertEqual(loaded.contexts[workerContext.prURL], workerContext)
-        XCTAssertEqual(fixture.model.reviewContext(for: pullRequest()), workerContext)
-        XCTAssertEqual(callbacks, 0)
-        XCTAssertFalse(WorkspaceReviewContext.shouldSync(context(number: 1), replacing: workerContext))
-        XCTAssertFalse(WorkspaceReviewContext.shouldSync(workerContext, replacing: workerContext))
-        XCTAssertTrue(WorkspaceReviewContext.shouldSync(workerContext, replacing: nil))
-    }
-
-    func testContextDoesNotUseAnotherAccountsNewerMetadata() async throws {
-        let fixture = fixture()
-        defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        var fresh = context(number: 1, updatedAt: 100)
-        fresh.accountLogin = "other"
-        fresh.headSHA = "other-accounts-head"
-        let otherContext = fresh
-        try await fixture.reviews.update { $0.contexts[otherContext.prURL] = otherContext }
-        await fixture.model.reload()
-        fixture.model.updateWorkload(state())
-
+        XCTAssertEqual(try Data(contentsOf: file), before)
         XCTAssertEqual(fixture.model.reviewContext(for: pullRequest()).headSHA, "head-1")
     }
 
-    func testRequestRequiresAuthorSHAAndMatchingAccountAndSupportsRerequest() async throws {
+    func testPriorityAuthorsPersistWithoutReviewWorker() async throws {
         let fixture = fixture()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        try await fixture.reviews.update { $0.accountLogin = "me"; $0.enabled = true }
-        await fixture.model.reload()
-        fixture.model.updateWorkload(state())
-        await eventually { fixture.model.reviewDocument.contexts.count == 1 }
-        let valid = fixture.model.reviewContext(for: pullRequest())
-        var missingSHA = valid
-        missingSHA.headSHA = ""
-        var missingAuthor = valid
-        missingAuthor.authorLogin = ""
-        var wrongAccount = valid
-        wrongAccount.accountLogin = "other"
-        XCTAssertNotNil(fixture.model.reviewUnavailableReason(for: missingSHA))
-        XCTAssertNotNil(fixture.model.reviewUnavailableReason(for: missingAuthor))
-        XCTAssertNotNil(fixture.model.reviewUnavailableReason(for: wrongAccount))
-        XCTAssertNil(fixture.model.reviewUnavailableReason(for: valid))
-
-        fixture.model.requestReview(valid)
-        await eventually { fixture.model.reviewDocument.jobs.count == 1 }
-        XCTAssertNotNil(fixture.model.reviewUnavailableReason(for: valid))
-        try await fixture.reviews.update { $0.jobs[0].status = .completed }
-        await fixture.model.reload()
-        fixture.model.requestReview(valid)
-        await eventually { fixture.model.reviewDocument.jobs.count == 2 }
-    }
-
-    func testClearingPolicyFieldPreservesOtherFields() async throws {
-        let fixture = fixture()
-        defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        let subject = BoardSubject.pullRequest(try PullRequestKey(url: pullRequest().url))
-        let url = subject.key.url.absoluteString
-        try await fixture.reviews.update {
-            $0.accountLogin = "me"
-            $0.policyOverrides[url] = AgentReviewPolicy(fixMode: .all, comments: false, replies: true)
-        }
-        await fixture.model.reload()
-        fixture.model.updateWorkload(state())
-        await eventually { fixture.model.reviewDocument.contexts.count == 1 }
-
-        fixture.model.setReviewFixMode(nil, for: subject)
-        await eventually { fixture.model.reviewPolicy(for: subject).fixMode == nil }
-
-        let loaded = try await fixture.reviews.load()
-        XCTAssertNil(loaded.policyOverrides[url]?.fixMode)
-        XCTAssertEqual(loaded.policyOverrides[url]?.comments, false)
-        XCTAssertEqual(loaded.policyOverrides[url]?.replies, true)
-    }
-
-    func testLatestJobShowsStaleForChangedSHA() throws {
-        var document = AgentReviewDocument()
-        document.enabled = true
-        document.accountLogin = "me"
-        let job = try document.enqueue(context: context(number: 1), source: "board", now: .now)
-
-        XCTAssertTrue(WorkspaceReviewContext.status(job, currentSHA: "new-sha").contains("Stale"))
-        XCTAssertEqual(WorkspaceReviewContext.status(job, currentSHA: job.headSHA), "Queued")
+        fixture.model.setPriorityAuthors(["COLLEAGUE"])
+        var pr = context(number: 1)
+        pr.authorLogin = "colleague"
+        XCTAssertEqual(fixture.model.reviewPriority(for: pr).rank, 2)
+        fixture.model.setPriorityAuthors([])
     }
 
     private func fixture() -> (
@@ -219,10 +91,11 @@ final class WorkspaceReviewTests: XCTestCase {
     ) {
         let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent(".build/workspace-tests/\(UUID().uuidString)")
+        let defaults = UserDefaults(suiteName: "WorkspaceReviewTests-\(UUID())")!
         let store = LocalWorkspaceStore(directoryURL: directory)
         let reviews = AgentReviewStore(directoryURL: directory)
         return (directory, store, reviews, WorkspaceModel(
-            store: store, sessions: AgentSessionManager(store: store, tmuxURL: nil), reviewStore: reviews
+            store: store, sessions: AgentSessionManager(store: store, tmuxURL: nil), reviewStore: reviews, defaults: defaults
         ))
     }
 

@@ -6,6 +6,7 @@ struct ReviewDetailView: View {
     @Bindable var workspace: WorkspaceModel
     let pullRequest: PullRequestPresentation?
     let stacks: [PullRequestStack]
+    @Bindable var layout: WorkspaceLayout
     @State private var submissionTarget: ReviewSubmissionTarget?
 
     var body: some View {
@@ -29,7 +30,7 @@ struct ReviewDetailView: View {
                 } else if let snapshot = review.snapshot {
                     switch review.tab {
                     case .overview: overview(snapshot)
-                    case .changes: ReviewDiffView(review: review)
+                    case .changes: ReviewDiffView(review: review, layout: layout)
                     case .threads: threads(snapshot)
                     case .workspace: EmptyView()
                     }
@@ -107,9 +108,6 @@ struct ReviewDetailView: View {
                 if !snapshot.notices.isEmpty {
                     ForEach(snapshot.notices, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
                 }
-                if let pr = pullRequest {
-                    WorkspaceReviewRequestView(workspace: workspace, pullRequest: pr)
-                }
                 if let identity = review.identity {
                     let older = review.local.previousDraftIdentities(identity)
                     if !older.isEmpty {
@@ -127,7 +125,7 @@ struct ReviewDetailView: View {
                         }
                     }
                 }
-                Text("Notes, tags, policy overrides, stacks, and pinned terminal sessions are available in Workspace.")
+                Text("Notes, tags, stacks, and pinned terminal sessions are available in Workspace.")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(20)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -135,38 +133,19 @@ struct ReviewDetailView: View {
 
     private func threads(_ snapshot: PRReviewSnapshot) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if !review.draft.comments.isEmpty {
-                    Text("Your local inline drafts").font(.headline)
-                    ForEach(review.draft.comments) { comment in
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text("\(comment.path):\(comment.line) · \(comment.side)").font(.caption).foregroundStyle(.secondary)
-                                Text(comment.body).textSelection(.enabled)
-                            }
-                            Spacer()
-                            Button("Remove") { review.editDraft { $0.comments.removeAll { $0.id == comment.id } } }
-                                .disabled(review.submitting)
-                        }
-                        Divider()
-                    }
+            LazyVStack(alignment: .leading, spacing: 16) {
+                Text("Your local inline drafts (\(review.draft.comments.count))").font(.headline)
+                if review.draft.comments.isEmpty { Text("No local inline drafts.").foregroundStyle(.secondary) }
+                ForEach(review.draft.comments) { comment in
+                    ReviewInlineDraftCard(review: review, draftID: comment.id)
                 }
-                Text("GitHub discussion").font(.headline)
-                if snapshot.comments.isEmpty { Text("No comments available.").foregroundStyle(.secondary) }
-                ForEach(snapshot.comments) { comment in
-                    VStack(alignment: .leading, spacing: 7) {
-                        HStack {
-                            Text("@\(comment.author)").font(.subheadline.bold())
-                            if let date = comment.createdAt { Text(date, style: .relative).font(.caption).foregroundStyle(.secondary) }
-                            Spacer()
-                            if let url = comment.url { Link("GitHub ↗", destination: url).font(.caption) }
-                        }
-                        if let path = comment.path { Text(path + (comment.line.map { ":\($0)" } ?? "")).font(.caption.monospaced()).foregroundStyle(.secondary) }
-                        if comment.replyToID != nil { Text("Reply in thread").font(.caption).foregroundStyle(.secondary) }
-                        Text(comment.body).textSelection(.enabled)
-                    }
-                    Divider()
-                }
+                let threads = snapshot.threads
+                Text("Inline discussions").font(.headline).padding(.top, 6)
+                if !threads.contains(where: \.isInline) { Text("No inline discussions available.").foregroundStyle(.secondary) }
+                ForEach(threads.filter(\.isInline)) { thread in ReviewConversationCard(review: review, thread: thread) }
+                Text("General PR discussion").font(.headline).padding(.top, 6)
+                if !threads.contains(where: { !$0.isInline }) { Text("No general discussion available.").foregroundStyle(.secondary) }
+                ForEach(threads.filter { !$0.isInline }) { thread in ReviewConversationCard(review: review, thread: thread) }
             }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -174,11 +153,12 @@ struct ReviewDetailView: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 6) {
             Divider()
-            if let notice = review.notice { Text(notice).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 16) }
+            if let notice = review.submissionMessage ?? review.notice { Text(notice).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 16) }
             HStack {
                 Text("\(review.draft.comments.count) inline drafts · Saved locally")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
+                if review.submitting { ProgressView().controlSize(.small) }
                 Button("Mark reviewed") { review.markReviewed() }
                     .disabled(review.snapshot == nil || review.submitting || !review.local.canSave)
                 Button("Submit review…") {
@@ -206,7 +186,8 @@ struct ReviewSubmissionView: View {
     let target: ReviewSubmissionTarget
     @State private var event = "COMMENT"
     @Environment(\.dismiss) private var dismiss
-    private var valid: Bool { review.identity == target.identity && review.local.canSave && !review.submitting }
+    private var valid: Bool { review.identity == target.identity && review.local.canSave }
+    private var canSubmit: Bool { valid && !review.submitting && (PRReviewEvent(rawValue: event)?.permits(body: draft.body, commentCount: draft.comments.count) == true) }
     private var draft: WorkspaceReviewDraft { review.local.draft(for: target.identity) }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -218,28 +199,30 @@ struct ReviewSubmissionView: View {
                 Text("The PR, account, or diff changed. Cancel and reopen this sheet after reviewing the current changes. Your original draft is retained.")
                     .foregroundStyle(.orange)
             }
-            TextEditor(text: Binding(get: { draft.body }, set: { value in if valid { review.editDraft { $0.body = value } } }))
-                .frame(minHeight: 150).border(Color.secondary.opacity(0.3))
-                .disabled(!valid)
+            MultilineComposer(text: Binding(get: { draft.body }, set: { value in if valid { review.editDraft { $0.body = value } } }),
+                placeholder: "Review summary", isEnabled: canSubmit, actionLabel: "Post to GitHub", allowsEmpty: true) { post() }
+                .frame(height: 150).disabled(!valid)
             Picker("Review decision", selection: $event) {
                 Text("Comment").tag("COMMENT")
                 if !target.ownPR { Text("Approve").tag("APPROVE"); Text("Request changes").tag("REQUEST_CHANGES") }
             }.pickerStyle(.radioGroup)
             Text("This posts your review and inline drafts to GitHub as your monitored account.")
                 .font(.caption).foregroundStyle(.secondary)
-            if event != "APPROVE" {
-                Text("Add a summary above to submit a Comment or Request changes review.")
+            if event == "REQUEST_CHANGES" {
+                Text("Request changes requires a summary above.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if let status = review.submissionMessage {
+                HStack { if review.submitting { ProgressView().controlSize(.small) }; Text(status).font(.caption).textSelection(.enabled) }
+            }
             HStack {
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(review.submitting ? "Close" : "Done") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Submit to GitHub") {
-                    if let choice = PRReviewEvent(rawValue: event) { review.submit(event: choice, target: target.identity) }
-                    dismiss()
-                }.buttonStyle(.borderedProminent)
-                    .disabled(!valid || (event != "APPROVE" && draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                Button("Post to GitHub") { post() }.buttonStyle(.borderedProminent).disabled(!canSubmit)
             }
         }.padding(24).frame(width: 560)
+    }
+    private func post() {
+        if canSubmit, let choice = PRReviewEvent(rawValue: event) { review.submit(event: choice, target: target.identity) }
     }
 }
