@@ -13,6 +13,8 @@ not part of GitHubBar's future trusted Developer ID/Sparkle update channel.
 - Pin or create Codex/Claude worktree sessions and jump to them from the menu.
 - Manage PRs in a larger window with attention queues, pins, snoozes, and activity.
 - Review unified or split diffs, save inline drafts, and explicitly submit reviews.
+- Navigate changed files in a GitHub-style folder tree, filter by path, and see
+  viewed markers, draft counts, and discussion counts beside filenames.
 - Ask a configured local agent about the selected PR or diff line. Configure this in
   Settings → Workspace chat; see the bundled `agent-chat.md` guide.
 - Run **Agent review** in a fresh pinned PR worktree with complete native patches
@@ -49,7 +51,7 @@ Run from a clean checkout:
 
 ```sh
 scripts/check.sh
-GITHUBBAR_VERSION=0.9.0 scripts/package-validation.sh
+GITHUBBAR_VERSION=0.9.1 scripts/package-validation.sh
 lipo -archs .build/validation/GitHubBar.app/Contents/MacOS/GitHubBar
 codesign --verify --deep --strict --verbose=2 .build/validation/GitHubBar.app
 plutil -extract CFBundleIdentifier raw .build/validation/GitHubBar.app/Contents/Info.plist

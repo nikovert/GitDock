@@ -4,7 +4,6 @@ import SwiftUI
 struct ReviewDiffView: View {
     @Bindable var review: ReviewWorkspaceModel
     @Bindable var layout: WorkspaceLayout
-    private var files: [PRSearchFile] { review.snapshot?.files ?? [] }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -28,7 +27,8 @@ struct ReviewDiffView: View {
             GeometryReader { geometry in
                 HStack(spacing: 0) {
                     if layout.showsFileList {
-                        fileList.frame(width: layout.resolvedFileListWidth(availableWidth: geometry.size.width))
+                        ReviewFileSidebar(review: review).id(review.identity?.prKey)
+                            .frame(width: layout.resolvedFileListWidth(availableWidth: geometry.size.width))
                         WorkspaceResizeDivider(width: Binding(get: { layout.resolvedFileListWidth(availableWidth: geometry.size.width) }, set: { layout.fileListWidth = $0 }),
                             minimum: 140, maximum: min(520, geometry.size.width - 300 - 10))
                             .frame(width: WorkspaceLayout.dividerWidth)
@@ -40,23 +40,6 @@ struct ReviewDiffView: View {
                             description: Text("There may be no changes in this comparison. Check any coverage notice above."))
                     }
                 }
-            }
-        }
-    }
-
-    private var fileList: some View {
-        List(selection: Binding(get: { review.selectedFile?.path }, set: { if let path = $0 { review.selectFile(path) } })) {
-            ForEach(files, id: \.path) { file in
-                HStack(alignment: .top, spacing: 5) {
-                    Image(systemName: review.draft.viewedFiles.contains(file.path) ? "checkmark.circle.fill" : "doc")
-                        .foregroundStyle(review.draft.viewedFiles.contains(file.path) ? Color.green : Color.secondary)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(file.path).font(.caption).lineLimit(3)
-                        Text("+\(file.additions) −\(file.deletions)").font(.caption2.monospaced()).foregroundStyle(.secondary)
-                        let count = review.draft.comments.filter { $0.path == file.path }.count
-                        if count > 0 { Label("\(count) drafts", systemImage: "pencil").font(.caption2).foregroundStyle(.orange) }
-                    }
-                }.tag(file.path).help(file.path)
             }
         }
     }

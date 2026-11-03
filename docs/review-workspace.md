@@ -42,7 +42,12 @@ available without losing preferred widths.
 - **Overview** shows the description, checks, urgency reason, and retained drafts
   from earlier head/base revisions.
 - **Changes** shows unified or split diffs. Click a line to save a local inline
-  draft or ask chat about the selection. Draft counts appear in the file list.
+  draft or ask chat about the selection. The file sidebar groups changed files
+  in expandable folders, compacting directories that have a single subfolder.
+  **Filter files…** searches full paths and previous names of renamed files;
+  matching folders expand while filtering. The folder menu expands or collapses
+  all folders. Filename rows show viewed markers, local draft counts, and discussion
+  counts; hover for the full path and change totals. Selecting a file opens its diff.
   Local drafts and anchored GitHub conversations appear beneath their exact lines.
 - **Threads** shows local drafts first, inline conversations grouped by their root,
   then general PR discussion. Cards include author, time, file/line, and GitHub links.

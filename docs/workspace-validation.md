@@ -1,5 +1,36 @@
 # Workspace improvements: local validation
 
+## Folder tree sidebar (0.9.1)
+
+Changes now groups files by expandable folders with compact directory chains,
+path/rename filtering, expand/collapse controls, viewed markers, and local draft
+and discussion counts. Selecting a file keeps the existing diff rendering;
+external draft/thread navigation reveals its containing folders and clears a
+filter that would hide the target. Narrow panels prioritize filenames; counts
+remain available in tooltips and accessibility labels.
+
+- 101 repository app tests passed in the SwiftPM app harness, plus its AppKit
+  bootstrap test (102 total). Five tree regressions cover branching/compaction,
+  collapse, filtering/renames, case-sensitive paths, and file/directory replacement.
+- Native renders inspected in light/dark appearances at 1100 points and with a
+  140-point sidebar at 600 points. Existing full workspace renders cover 900,
+  1380, and 1800-point windows and both diff layouts.
+- `scripts/check.sh` passed (core checks, strict app typechecking, avatar/status
+  checks, plist validation, and generated Xcode project).
+- Eight pre-existing `PRNavigationTests` remain excluded from the temporary app
+  harness because its native status/popover event host stalls; they were not
+  treated as passing. Live pointer/keyboard interaction still needs a manual check.
+
+Try a PR with nested directories: collapse a folder, filter by filename and by
+folder path, clear the filter, select a file, and use a draft's **Show in diff**.
+Drag the sidebar divider and check Light/Dark appearances. Confirm the selected
+file and its inline drafts remain visible. No real GitHub review was posted.
+
+![File tree in light mode](assets/workspace-file-tree-light.png)
+![File tree in dark mode](assets/workspace-file-tree-dark.png)
+
+## Earlier workspace validation
+
 Work branch: `feat/workspace-review-improvements`, based on `03057aa`.
 The workspace improvements were merged to main at `5b060ce`; the installation guide followed at `a5a3339`. No real review is posted by the checks.
 
