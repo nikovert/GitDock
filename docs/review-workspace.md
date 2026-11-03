@@ -37,6 +37,17 @@ contains labelled panel visibility controls, **Focus diff**, and **Reset layout*
 Widths and visibility survive reopening; smaller windows clamp panels to the space
 available without losing preferred widths.
 
+Use **Cmd+Plus** (or **Cmd+=**) to enlarge workspace text, **Cmd+Minus** to reduce
+it, and **Cmd+0** to reset. The shortcuts work while typing in the chat composer;
+the **View** menu contains the same actions. Sizes range from 80% to 200% and are
+saved across restarts. At larger sizes, the PR header scrolls separately so the diff
+remains accessible in a small window.
+
+The **text-size icon** beside the chat settings button changes chat independently,
+including Markdown, code blocks, and the text you type. Workspace shortcuts adjust
+both sizes together; Cmd+0 resets both. Resizing preserves unsent text and selection
+and waits for active input-method composition to finish before changing its font.
+
 ## Review code and discussion
 
 - **Overview** shows the description, checks, urgency reason, and retained drafts

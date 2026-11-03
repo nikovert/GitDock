@@ -93,13 +93,20 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
             ("review-dark", 1380.0, .review, .changes, .darkAqua),
             ("review-minimum", 900.0, .review, .changes, .aqua),
             ("review-large", 1800.0, .review, .changes, .darkAqua),
+            ("review-zoomed-light", 1800.0, .review, .changes, .aqua),
+            ("review-zoomed-dark", 1800.0, .review, .changes, .darkAqua),
+            ("review-zoomed-minimum", 900.0, .review, .changes, .aqua),
+            ("chat-zoomed-minimum", 900.0, .review, .changes, .aqua),
             ("threads-light", 1380.0, .review, .threads, .aqua),
             ("threads-dark", 1380.0, .review, .threads, .darkAqua),
             ("threads-partial-minimum", 900.0, .review, .threads, .aqua),
             ("manage-minimum", 900.0, .manage, .overview, .aqua),
         ] {
-            let host = NSHostingView(rootView: ReviewWorkspaceView(workspace: workspace, appModel: app, review: model, layout: WorkspaceLayout(defaults: defaults)).defaultAppStorage(defaults))
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 800),
+            let textSize = WorkspaceTextSize(defaults: defaults)
+            textSize.reset()
+            let host = NSHostingView(rootView: ReviewWorkspaceView(workspace: workspace, appModel: app, review: model,
+                layout: WorkspaceLayout(defaults: defaults), textSize: textSize).defaultAppStorage(defaults))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: name == "review-zoomed-minimum" ? 650 : 800),
                 styleMask: [.titled], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.appearance = NSAppearance(named: appearance)
@@ -119,11 +126,20 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
                         testsRun: [], limitations: []), changedFileCount: 2, mergeBaseSHA: "base")
                 $0.messages = [WorkspaceChatMessage(role: "assistant", text: "The fallback preserves the last valid output. Check **missing inputs** and test recovery.\n```python\nassert update(None) == previous_output\n```")]
             }
-            model.splitDiff = name == "review-dark"
+            model.splitDiff = name == "review-dark" || name == "review-zoomed-dark"
+            model.question = "Explain how the fallback recovers when valid input returns."
+            if name.hasPrefix("review-zoomed") { for _ in 0..<(name == "review-zoomed-minimum" ? 10 : 6) { textSize.increase() } }
+            if name == "chat-zoomed-minimum" { for _ in 0..<10 { textSize.increaseChat() } }
             try await Task.sleep(for: .milliseconds(50))
             host.layoutSubtreeIfNeeded()
             XCTAssertNotNil(model.snapshot)
             XCTAssertNil(model.errorMessage)
+            if mode == .review {
+                let composers = descendants(of: host).compactMap { $0 as? ComposerTextView }
+                XCTAssertFalse(composers.isEmpty)
+                XCTAssertEqual(composers.first?.font?.pointSize ?? 0, NSFont.systemFontSize * textSize.chatScale, accuracy: 0.001)
+                XCTAssertEqual(composers.first?.string, model.question)
+            }
             let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
             host.cacheDisplay(in: host.bounds, to: bitmap)
             let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
@@ -150,6 +166,10 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
             window.contentView = nil
             window.close()
         }
+    }
+
+    private func descendants(of view: NSView) -> [NSView] {
+        view.subviews.flatMap { [$0] + descendants(of: $0) }
     }
 }
 

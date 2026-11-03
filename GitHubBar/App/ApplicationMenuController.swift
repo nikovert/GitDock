@@ -43,6 +43,13 @@ final class ApplicationMenuController: NSObject {
         }
         applicationItem.submenu = applicationMenu
         mainMenu.addItem(applicationItem)
+        let viewItem = NSMenuItem()
+        let viewMenu = NSMenu(title: "View")
+        viewMenu.addItem(NSMenuItem(title: "Make Text Larger", action: #selector(WorkspaceWindow.makeWorkspaceTextLarger(_:)), keyEquivalent: "+"))
+        viewMenu.addItem(NSMenuItem(title: "Make Text Smaller", action: #selector(WorkspaceWindow.makeWorkspaceTextSmaller(_:)), keyEquivalent: "-"))
+        viewMenu.addItem(NSMenuItem(title: "Actual Text Size", action: #selector(WorkspaceWindow.resetWorkspaceTextSize(_:)), keyEquivalent: "0"))
+        viewItem.submenu = viewMenu
+        mainMenu.addItem(viewItem)
         NSApp.mainMenu = mainMenu
     }
 

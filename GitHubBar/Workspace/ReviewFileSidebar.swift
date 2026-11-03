@@ -57,7 +57,7 @@ struct ReviewFileSidebar: View {
                     .overlay(alignment: .top) {
                         if tree.fileCount == 0 {
                             Text(files.isEmpty ? "No changed files" : "No matching files")
-                                .font(.caption).foregroundStyle(.secondary).padding()
+                                .workspaceFont(.caption).foregroundStyle(.secondary).padding()
                         }
                     }
                     .onChange(of: review.selectedFile?.path) { _, path in reveal(path, proxy: proxy) }
@@ -66,7 +66,7 @@ struct ReviewFileSidebar: View {
             }
             Divider()
             Text(isFiltering ? "\(tree.fileCount) of \(files.count) files" : "\(files.count) changed files")
-                .font(.caption2).foregroundStyle(.secondary)
+                .workspaceFont(.caption2).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 7)
         }.background(Color(nsColor: .controlBackgroundColor))
     }
@@ -78,12 +78,12 @@ struct ReviewFileSidebar: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary).frame(width: 10)
+                    .workspaceFont(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary).frame(width: 10)
                 Image(systemName: "folder.fill").foregroundStyle(.blue)
                 Text(row.name).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 0)
             }.padding(.leading, CGFloat(row.depth) * 12).frame(minHeight: 23).contentShape(Rectangle())
-        }.buttonStyle(.plain).font(.caption).help(row.path)
+        }.buttonStyle(.plain).workspaceFont(.caption).help(row.path)
             .disabled(isFiltering)
             .accessibilityLabel("\(expanded ? "Collapse" : "Expand") folder \(row.path)")
             .accessibilityValue(expanded ? "Expanded" : "Collapsed")
@@ -107,7 +107,7 @@ struct ReviewFileSidebar: View {
                 Text(name).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 0)
             }
-        }.font(.caption).padding(.leading, CGFloat(depth) * 12 + 15).frame(minHeight: 23)
+        }.workspaceFont(.caption).padding(.leading, CGFloat(depth) * 12 + 15).frame(minHeight: 23)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(file.path), \(drafts) local drafts, \(threads) discussion threads\(viewed ? ", viewed" : "")")
             .help(file.path + (file.previousPath.map { "\nRenamed from \($0)" } ?? "") + "\n+\(file.additions) −\(file.deletions)\n\(drafts) local drafts · \(threads) discussion threads")

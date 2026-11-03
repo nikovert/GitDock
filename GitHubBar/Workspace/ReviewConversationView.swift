@@ -16,12 +16,12 @@ struct ReviewInlineDraftCard: View {
         if let comment {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
-                    Label(comment.agentName.map { "\($0) draft" } ?? "Local draft", systemImage: "pencil").font(.caption.bold()).foregroundStyle(.orange)
+                    Label(comment.agentName.map { "\($0) draft" } ?? "Local draft", systemImage: "pencil").workspaceFont(.caption.bold()).foregroundStyle(.orange)
                     Spacer()
-                    Text("Not published").font(.caption).foregroundStyle(.secondary)
+                    Text("Not published").workspaceFont(.caption).foregroundStyle(.secondary)
                 }
-                if let date = comment.createdAt { Text(date, style: .relative).font(.caption2).foregroundStyle(.secondary) }
-                Text("\(comment.path):\(comment.line) · \(comment.side)").font(.caption.monospaced()).foregroundStyle(.secondary)
+                if let date = comment.createdAt { Text(date, style: .relative).workspaceFont(.caption2).foregroundStyle(.secondary) }
+                Text("\(comment.path):\(comment.line) · \(comment.side)").workspaceFont(.caption.monospaced()).foregroundStyle(.secondary)
                 if editing {
                     MultilineComposer(text: Binding(get: { self.comment?.body ?? "" }, set: { review.updateInlineDraft(draftID, body: $0) }),
                         placeholder: "Edit inline draft", isEnabled: !comment.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && review.local.canSave,
@@ -36,7 +36,7 @@ struct ReviewInlineDraftCard: View {
                     Button("Remove") { review.editDraft { $0.comments.removeAll { $0.id == draftID } } }.disabled(!review.local.canSave)
                     Spacer(minLength: 0)
                 }.controlSize(.small)
-                if !anchorAvailable { Text("This draft has no available current diff anchor. It remains saved here.").font(.caption).foregroundStyle(.secondary) }
+                if !anchorAvailable { Text("This draft has no available current diff anchor. It remains saved here.").workspaceFont(.caption).foregroundStyle(.secondary) }
                 Button("Post to GitHub") {
                     if let identity = review.identity { review.submitDraft(draftID, target: identity) }
                 }.controlSize(.small).disabled(!anchorAvailable || review.submitting || !review.local.canSave || review.sinceLastReview || comment.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -55,23 +55,23 @@ struct ReviewConversationCard: View {
         VStack(alignment: .leading, spacing: 12) {
             if let root = thread.root, let path = root.path {
                 Text(path + (root.line ?? root.originalLine).map { ":\($0)" }.orEmpty + (root.side.map { " · \($0.rawValue)" } ?? ""))
-                    .font(.caption.monospaced()).foregroundStyle(.secondary)
+                    .workspaceFont(.caption.monospaced()).foregroundStyle(.secondary)
             }
             if let snapshot = review.snapshot, thread.isInline {
                 if let reason = snapshot.anchorUnavailableReason(for: thread) {
-                    Label(reason, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+                    Label(reason, systemImage: "info.circle").workspaceFont(.caption).foregroundStyle(.secondary)
                 } else if showsNavigation, let anchor = snapshot.anchor(for: thread) {
                     Button("Show in diff") { review.follow(ReviewChatCitation(path: anchor.path, line: anchor.line, side: anchor.side.rawValue)) }
-                        .font(.caption)
+                        .workspaceFont(.caption)
                 }
             }
             ForEach(thread.comments) { comment in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text("@\(comment.author)").font(.subheadline.bold())
-                        if let date = comment.createdAt { Text(date, style: .relative).font(.caption).foregroundStyle(.secondary) }
+                        Text("@\(comment.author)").workspaceFont(.subheadline.bold())
+                        if let date = comment.createdAt { Text(date, style: .relative).workspaceFont(.caption).foregroundStyle(.secondary) }
                         Spacer()
-                        if let url = comment.url { Link("GitHub ↗", destination: url).font(.caption) }
+                        if let url = comment.url { Link("GitHub ↗", destination: url).workspaceFont(.caption) }
                     }
                     AgentMarkdownView(text: comment.body.isEmpty ? "Review submitted without a summary." : comment.body)
                 }
@@ -96,12 +96,12 @@ struct ReviewGeneralDraftCard: View {
         if let comment {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
-                    Label(comment.agentName.map { "\($0) draft" } ?? "General draft", systemImage: "pencil").font(.caption.bold()).foregroundStyle(.orange)
+                    Label(comment.agentName.map { "\($0) draft" } ?? "General draft", systemImage: "pencil").workspaceFont(.caption.bold()).foregroundStyle(.orange)
                     Spacer()
-                    Text("Not published").font(.caption).foregroundStyle(.secondary)
+                    Text("Not published").workspaceFont(.caption).foregroundStyle(.secondary)
                 }
-                if let date = comment.createdAt { Text(date, style: .relative).font(.caption2).foregroundStyle(.secondary) }
-                if let location = comment.anchorDescription { Text(location).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled) }
+                if let date = comment.createdAt { Text(date, style: .relative).workspaceFont(.caption2).foregroundStyle(.secondary) }
+                if let location = comment.anchorDescription { Text(location).workspaceFont(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled) }
                 if editing {
                     MultilineComposer(text: Binding(get: { self.comment?.body ?? "" }, set: { value in
                         review.editDraft { draft in

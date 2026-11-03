@@ -7,7 +7,7 @@ struct WorktreeCleanupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Clean up merged worktrees").font(.title2.bold())
+            Text("Clean up merged worktrees").workspaceFont(.title2.bold())
             Text("Only verified merged PRs with clean worktrees matching origin are eligible. Local branches, board notes, and review history are kept.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -27,7 +27,7 @@ struct WorktreeCleanupView: View {
                 ProgressView("Checking GitHub, origin, local changes, and attached sessions…")
             case .choice:
                 Text("\(model.eligible.count) eligible · \(model.candidates.count - model.eligible.count) skipped")
-                    .font(.headline)
+                    .workspaceFont(.headline)
                 Text("Stopping closes the attached agent sessions and may interrupt work in them. Choose all eligible worktrees, or review the list and select individual ones.")
                     .fixedSize(horizontal: false, vertical: true)
                 candidateList(selectable: false)
@@ -43,11 +43,11 @@ struct WorktreeCleanupView: View {
                         ForEach(model.results) { result in
                             VStack(alignment: .leading, spacing: 4) {
                                 Label(result.outcome.rawValue.capitalized, systemImage: result.outcome == .removed ? "checkmark.circle" : "exclamationmark.circle")
-                                    .font(.headline)
+                                    .workspaceFont(.headline)
                                 if let candidate = model.candidates.first(where: { $0.path == result.path }) {
                                     pullRequestDetails(candidate)
                                 }
-                                Text(result.path).font(.caption).textSelection(.enabled)
+                                Text(result.path).workspaceFont(.caption).textSelection(.enabled)
                                 Text(result.message).foregroundStyle(.secondary).textSelection(.enabled)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,15 +100,15 @@ struct WorktreeCleanupView: View {
                         }
                         VStack(alignment: .leading, spacing: 4) {
                             pullRequestDetails(row)
-                            Text(row.path).font(.caption).textSelection(.enabled)
+                            Text(row.path).workspaceFont(.caption).textSelection(.enabled)
                             ForEach(row.sessions) { session in
                                 let live = session.tmuxSessionName.flatMap { row.liveSessions[$0] } != nil
                                 let activity = live ? "Running" : (row.isEligible ? "Not running" : "Activity not verified")
                                 Text("\(session.agent.rawValue.capitalized) · \(activity) · \(session.tmuxSessionName ?? "No managed terminal")")
-                                    .font(.caption).foregroundStyle(.secondary)
+                                    .workspaceFont(.caption).foregroundStyle(.secondary)
                             }
                             Label(row.skipReason ?? "Merged, clean, and synced with origin", systemImage: row.isEligible ? "checkmark.shield" : "lock")
-                                .font(.caption).foregroundStyle(row.isEligible ? Color.green : Color.secondary)
+                                .workspaceFont(.caption).foregroundStyle(row.isEligible ? Color.green : Color.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -125,10 +125,10 @@ struct WorktreeCleanupView: View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(candidate.pullRequests) { pr in
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(pr.title).font(.headline).fixedSize(horizontal: false, vertical: true)
-                    Link(pr.key.description, destination: pr.key.url).font(.caption)
+                    Text(pr.title).workspaceFont(.headline).fixedSize(horizontal: false, vertical: true)
+                    Link(pr.key.description, destination: pr.key.url).workspaceFont(.caption)
                     Text(pr.description.isEmpty ? "No PR description provided." : pr.description)
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .workspaceFont(.subheadline).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
@@ -137,9 +137,9 @@ struct WorktreeCleanupView: View {
                 .filter { key in !candidate.pullRequests.contains(where: { $0.key == key }) }
                 .sorted { $0.description < $1.description }, id: \.self) { key in
                 VStack(alignment: .leading, spacing: 3) {
-                    Link(key.description, destination: key.url).font(.headline)
+                    Link(key.description, destination: key.url).workspaceFont(.headline)
                     Text("PR title and description unavailable.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .workspaceFont(.subheadline).foregroundStyle(.secondary)
                 }
             }
         }

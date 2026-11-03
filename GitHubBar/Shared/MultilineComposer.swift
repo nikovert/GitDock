@@ -4,6 +4,7 @@ import SwiftUI
 /// A multiline editor whose Return action is shared by chat and review composers.
 /// `isEnabled` controls submission; the draft stays editable while it is unavailable.
 struct MultilineComposer: NSViewRepresentable {
+    @Environment(\.workspaceTextScale) private var textScale
     @Binding var text: String
     var placeholder: String
     var isEnabled: Bool
@@ -48,6 +49,7 @@ struct MultilineComposer: NSViewRepresentable {
         editor.placeholder = placeholder
         editor.submissionEnabled = isEnabled
         editor.allowsEmpty = allowsEmpty
+        editor.setWorkspaceTextScale(textScale)
         editor.onSubmit = onSubmit
         editor.needsDisplay = true
     }
@@ -63,6 +65,22 @@ struct MultilineComposer: NSViewRepresentable {
 }
 
 final class ComposerTextView: NSTextView {
+    private var desiredFontSize = NSFont.systemFontSize
+    func setWorkspaceTextScale(_ scale: Double) {
+        desiredFontSize = NSFont.systemFontSize * min(2, max(0.8, scale.isFinite ? scale : 1))
+        applyDesiredFont()
+    }
+    private func applyDesiredFont() {
+        guard !hasMarkedText(), font?.pointSize != desiredFontSize else { return }
+        let selection = selectedRange()
+        font = .systemFont(ofSize: desiredFontSize)
+        typingAttributes[.font] = font
+        setSelectedRange(selection)
+    }
+    override func unmarkText() {
+        super.unmarkText()
+        applyDesiredFont()
+    }
     var onSubmit: (() -> Void)?
     var submissionEnabled = true
     var allowsEmpty = false

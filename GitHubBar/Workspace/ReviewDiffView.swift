@@ -4,6 +4,8 @@ import SwiftUI
 struct ReviewDiffView: View {
     @Bindable var review: ReviewWorkspaceModel
     @Bindable var layout: WorkspaceLayout
+    @Environment(\.workspaceTextScale) private var textScale
+    private var lineHeight: CGFloat { 22 * textScale }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -17,11 +19,11 @@ struct ReviewDiffView: View {
                 }.pickerStyle(.segmented).labelsHidden().frame(width: 140)
             }.padding(12)
             if let notices = review.snapshot?.notices, !notices.isEmpty {
-                Text(notices.joined(separator: " ")).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
+                Text(notices.joined(separator: " ")).workspaceFont(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
             }
             if review.sinceLastReview {
                 Text("Comparing commits. Switch to the full PR diff before drafting inline comments.")
-                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
+                    .workspaceFont(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
             }
             Divider()
             GeometryReader { geometry in
@@ -48,8 +50,8 @@ struct ReviewDiffView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(file.path).font(.caption.monospaced()).textSelection(.enabled)
-                    if let previous = file.previousPath { Text("Renamed from \(previous)").font(.caption2).foregroundStyle(.secondary) }
+                    Text(file.path).workspaceFont(.caption.monospaced()).textSelection(.enabled)
+                    if let previous = file.previousPath { Text("Renamed from \(previous)").workspaceFont(.caption2).foregroundStyle(.secondary) }
                 }
                 Spacer()
                 Toggle("Viewed", isOn: Binding(get: { review.draft.viewedFiles.contains(file.path) },
@@ -60,9 +62,9 @@ struct ReviewDiffView: View {
             if let patch = file.patch, !patch.isEmpty {
                 GeometryReader { geometry in
                     let lines = PRDiffParser.parse(patch)
-                    let textWidth = CGFloat(lines.filter { $0.kind != .hunk }.map { $0.text.count }.max() ?? 0) * 6.7
-                    let columnWidth = max(geometry.size.width / 2, textWidth + 55, 280)
-                    let contentWidth = review.splitDiff ? columnWidth * 2 + 1 : max(geometry.size.width, textWidth + 120)
+                    let textWidth = CGFloat(lines.filter { $0.kind != .hunk }.map { $0.text.count }.max() ?? 0) * 6.7 * textScale
+                    let columnWidth = max(geometry.size.width / 2, textWidth + 55 * textScale, 280)
+                    let contentWidth = review.splitDiff ? columnWidth * 2 + 1 : max(geometry.size.width, textWidth + 120 * textScale)
                     ScrollViewReader { proxy in
                     ScrollView([.horizontal, .vertical]) {
                         LazyVStack(alignment: .leading, spacing: 0) {
@@ -75,7 +77,7 @@ struct ReviewDiffView: View {
                                                 splitCell(row.left, file: file, side: "LEFT", width: columnWidth)
                                                 Rectangle().fill(Color.secondary.opacity(0.2)).frame(width: 1)
                                                 splitCell(row.right, file: file, side: "RIGHT", width: columnWidth)
-                                            }.frame(height: 22)
+                                            }.frame(height: lineHeight)
                                             SplitDiffAnnotations(columnWidth: columnWidth) {
                                                 lineConversations(file: file, oldLine: row.left?.oldLine, newLine: nil)
                                             } right: {
@@ -129,7 +131,7 @@ struct ReviewDiffView: View {
         }
     }
     private func hunkRow(_ line: PRDiffLine) -> some View {
-        Text(line.text).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+        Text(line.text).workspaceFont(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
             .padding(.horizontal, 8).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
             .background(color(line))
     }
@@ -137,13 +139,13 @@ struct ReviewDiffView: View {
         let side = line.kind == .deletion ? "LEFT" : "RIGHT"
         return Button { select(line, file: file, side: side) } label: {
             HStack(spacing: 0) {
-                Text(line.oldLine.map(String.init) ?? "").frame(width: 40, alignment: .trailing).foregroundStyle(.secondary)
-                Text(line.newLine.map(String.init) ?? "").frame(width: 40, alignment: .trailing).foregroundStyle(.secondary)
-                Text(line.kind == .addition ? "+" : line.kind == .deletion ? "−" : " ").frame(width: 24)
+                Text(line.oldLine.map(String.init) ?? "").frame(width: 40 * textScale, alignment: .trailing).foregroundStyle(.secondary)
+                Text(line.newLine.map(String.init) ?? "").frame(width: 40 * textScale, alignment: .trailing).foregroundStyle(.secondary)
+                Text(line.kind == .addition ? "+" : line.kind == .deletion ? "−" : " ").frame(width: 24 * textScale)
                 Text(line.text.isEmpty ? " " : line.text).fixedSize(horizontal: true, vertical: false)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .font(.system(size: 11, design: .monospaced)).frame(height: 22).padding(.trailing, 12)
+            .workspaceFont(.system(size: 11, design: .monospaced)).frame(height: lineHeight).padding(.trailing, 12)
             .background(color(line)).contentShape(Rectangle())
             .overlay { if selected(line, side: side) { Rectangle().stroke(Color.accentColor, lineWidth: 1) } }
         }.buttonStyle(.plain)
@@ -153,14 +155,14 @@ struct ReviewDiffView: View {
             Button { select(line, file: file, side: side) } label: {
                 HStack(spacing: 8) {
                     Text((side == "LEFT" ? line.oldLine : line.newLine).map(String.init) ?? "")
-                        .frame(width: 35, alignment: .trailing).foregroundStyle(.secondary)
+                        .frame(width: 35 * textScale, alignment: .trailing).foregroundStyle(.secondary)
                     Text(line.text.isEmpty ? " " : line.text).fixedSize(horizontal: true, vertical: false)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }.font(.system(size: 11, design: .monospaced)).padding(.trailing, 10)
-                    .frame(width: width, height: 22).background(color(line)).contentShape(Rectangle())
+                }.workspaceFont(.system(size: 11, design: .monospaced)).padding(.trailing, 10)
+                    .frame(width: width, height: lineHeight).background(color(line)).contentShape(Rectangle())
                     .overlay { if selected(line, side: side) { Rectangle().stroke(Color.accentColor, lineWidth: 1) } }
             }.buttonStyle(.plain)
-        } else { Color.secondary.opacity(0.05).frame(width: width, height: 22) }
+        } else { Color.secondary.opacity(0.05).frame(width: width, height: lineHeight) }
     }
     @ViewBuilder private func lineConversations(file: PRSearchFile, oldLine: Int?, newLine: Int?) -> some View {
         if !review.sinceLastReview {
@@ -186,7 +188,7 @@ struct ReviewDiffView: View {
     private func selectionEditor(_ selected: ReviewLineSelection) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("\(selected.path):\(selected.line) · \(selected.side)").font(.caption.monospaced()).lineLimit(2)
+                Text("\(selected.path):\(selected.line) · \(selected.side)").workspaceFont(.caption.monospaced()).lineLimit(2)
                 Spacer()
                 Button { review.selection = nil } label: { Image(systemName: "xmark") }
             }
@@ -199,10 +201,10 @@ struct ReviewDiffView: View {
                     isEnabled: canSaveInline, actionLabel: "Save draft") { review.addInlineDraft() }.frame(height: 85)
                 HStack {
                     Button("Save draft") { review.addInlineDraft() }.disabled(!canSaveInline)
-                    Text("Enter saves locally · Ctrl+Enter adds a newline").font(.caption2).foregroundStyle(.secondary)
+                    Text("Enter saves locally · Ctrl+Enter adds a newline").workspaceFont(.caption2).foregroundStyle(.secondary)
                 }
             } else {
-                Text("This diff is incomplete; comment on GitHub for this file.").font(.caption).foregroundStyle(.secondary)
+                Text("This diff is incomplete; comment on GitHub for this file.").workspaceFont(.caption).foregroundStyle(.secondary)
             }
         }.padding(12).background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
     }

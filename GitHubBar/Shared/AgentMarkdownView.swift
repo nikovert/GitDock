@@ -10,12 +10,12 @@ struct AgentMarkdownView: View {
                 switch block {
                 case .prose(let prose):
                     Text((try? AttributedString(markdown: prose, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(prose))
-                        .font(.subheadline).textSelection(.enabled)
+                        .workspaceFont(.subheadline).textSelection(.enabled)
                 case .code(let language, let code):
                     VStack(alignment: .leading, spacing: 5) {
-                        if !language.isEmpty { Text(language).font(.caption2).foregroundStyle(.secondary) }
+                        if !language.isEmpty { Text(language).workspaceFont(.caption2).foregroundStyle(.secondary) }
                         ScrollView(.horizontal) {
-                            Text(code).font(.system(.caption, design: .monospaced))
+                            Text(code).workspaceFont(.system(.caption, design: .monospaced))
                                 .textSelection(.enabled).fixedSize(horizontal: true, vertical: false)
                         }
                     }.padding(10).frame(maxWidth: .infinity, alignment: .leading)

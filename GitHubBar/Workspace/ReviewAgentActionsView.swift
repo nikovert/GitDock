@@ -28,28 +28,28 @@ struct ReviewAgentActionsView: View {
             if review.reviewing {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text(review.agentReviewMessage ?? "Agent reviewing…").font(.caption)
+                    Text(review.agentReviewMessage ?? "Agent reviewing…").workspaceFont(.caption)
                     Button("Cancel review") { review.cancelAgentReview() }.controlSize(.small)
                 }
             } else if let message = review.agentReviewMessage {
-                Text(message).font(.caption).foregroundStyle(.secondary)
+                Text(message).workspaceFont(.caption).foregroundStyle(.secondary)
             }
             if let error = review.agentReviewErrorMessage {
-                Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
+                Text(error).workspaceFont(.caption).foregroundStyle(.red).textSelection(.enabled)
             }
             if let path = review.agentReviewWorktreePath, review.reviewing {
                 Label("Inspecting a separate read-only worktree", systemImage: "folder.badge.gearshape")
-                    .font(.caption).foregroundStyle(.secondary).help(path)
+                    .workspaceFont(.caption).foregroundStyle(.secondary).help(path)
             }
             if let warning = review.agentReviewCleanupMessage {
-                Text(warning).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
+                Text(warning).workspaceFont(.caption).foregroundStyle(.orange).textSelection(.enabled)
             }
-            if !configured { Button("Configure review agent…") { showsSettings = true }.font(.caption) }
+            if !configured { Button("Configure review agent…") { showsSettings = true }.workspaceFont(.caption) }
             else if !supportsWorktree {
-                Button("Choose Codex or Claude for worktree reviews…") { showsSettings = true }.font(.caption)
+                Button("Choose Codex or Claude for worktree reviews…") { showsSettings = true }.workspaceFont(.caption)
             }
             if !hasCheckout, !review.reviewing {
-                Button("Configure a repository checkout for worktree reviews…") { review.tab = .workspace }.font(.caption)
+                Button("Configure a repository checkout for worktree reviews…") { review.tab = .workspace }.workspaceFont(.caption)
             }
         }
         .sheet(isPresented: $showsSettings) { ReviewChatSettingsView() }
@@ -109,37 +109,37 @@ struct AgentFixLaunchView: View {
     var body: some View {
         ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Have an agent make all fixes").font(.title2.bold())
-            Text(target.request.title).font(.headline)
+            Text("Have an agent make all fixes").workspaceFont(.title2.bold())
+            Text(target.request.title).workspaceFont(.headline)
             Text("\(target.request.key.description) · @\(target.identity.account) · Head \(target.identity.headSHA.prefix(8))")
-                .font(.caption.monospaced()).foregroundStyle(.secondary)
+                .workspaceFont(.caption.monospaced()).foregroundStyle(.secondary)
             Text("Start a coding-agent session in a fresh PR worktree. It will assess published comments and local drafts, apply justified fixes, run tests, and commit locally. Follow progress in Terminal.")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .workspaceFont(.subheadline).foregroundStyle(.secondary)
             Picker("Coding agent", selection: $agent) {
                 ForEach(AgentKind.allCases, id: \.self) { value in Text(value.rawValue.capitalized).tag(value) }
             }.pickerStyle(.segmented).disabled(launching || session != nil)
-            Text("Default fix prompt").font(.subheadline.bold())
-            TextEditor(text: $instructions).font(.body).frame(height: 170)
+            Text("Default fix prompt").workspaceFont(.subheadline.bold())
+            TextEditor(text: $instructions).workspaceFont(.body).frame(height: 170)
                 .overlay { RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.25)) }
                 .disabled(launching || session != nil)
             HStack {
                 Button("Reset default prompt") { instructions = AgentFixRequest.defaultInstructions }.disabled(launching || session != nil)
                 Spacer()
-                Text("Commits stay local · pushing is separate").font(.caption).foregroundStyle(.secondary)
+                Text("Commits stay local · pushing is separate").workspaceFont(.caption).foregroundStyle(.secondary)
             }
             DisclosureGroup("PR and comment context") {
-                ScrollView { Text(preview).font(.caption.monospaced()).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(height: 130)
-                if target.request.defaultPrompt.count > 24_000 { Text("Preview is shortened. Complete comment context is sent to the agent.").font(.caption).foregroundStyle(.secondary) }
-            }.font(.caption)
+                ScrollView { Text(preview).workspaceFont(.caption.monospaced()).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(height: 130)
+                if target.request.defaultPrompt.count > 24_000 { Text("Preview is shortened. Complete comment context is sent to the agent.").workspaceFont(.caption).foregroundStyle(.secondary) }
+            }.workspaceFont(.caption)
             if !valid { Text("The account, PR, or diff changed. Close and reopen this sheet.").foregroundStyle(.orange) }
             if !checkoutConfigured {
-                Text("Configure a local checkout and worktree root in this PR's Workspace tab first.").font(.caption).foregroundStyle(.orange)
+                Text("Configure a local checkout and worktree root in this PR's Workspace tab first.").workspaceFont(.caption).foregroundStyle(.orange)
                 Button("Configure workspace") { review.tab = .workspace; dismiss() }
-            } else if !executableFound { Text("The selected coding-agent executable is unavailable. Check Workspace setup.").font(.caption).foregroundStyle(.orange) }
-            if launching { HStack { ProgressView().controlSize(.small); Text("Checking the PR and starting the coding session…").font(.caption) } }
-            if let error { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
+            } else if !executableFound { Text("The selected coding-agent executable is unavailable. Check Workspace setup.").workspaceFont(.caption).foregroundStyle(.orange) }
+            if launching { HStack { ProgressView().controlSize(.small); Text("Checking the PR and starting the coding session…").workspaceFont(.caption) } }
+            if let error { Text(error).workspaceFont(.caption).foregroundStyle(.red).textSelection(.enabled) }
             if let session {
-                Text("Session started. The agent has been asked to fix, test, and commit; inspect its results in Terminal.").font(.caption).foregroundStyle(.secondary)
+                Text("Session started. The agent has been asked to fix, test, and commit; inspect its results in Terminal.").workspaceFont(.caption).foregroundStyle(.secondary)
                 Button("Open agent session") { workspace.focus(session) }
             }
             HStack {

@@ -1,5 +1,39 @@
 # Workspace improvements: local validation
 
+## Workspace and chat text sizing (0.9.2)
+
+Cmd+Plus/Cmd+= and Cmd+Minus adjust workspace and chat text together in 10% steps,
+from 80% to 200%; Cmd+0 resets both. The native View menu exposes the same actions.
+The chat header menu independently sizes Markdown, code, and the native composer.
+Both preferences persist. Font changes preserve draft text and selection; active
+IME composition defers its font update until unmarking. Diff line heights, gutters,
+and horizontal width estimates grow with code text. Large PR headers scroll in a
+capped region so the diff remains accessible in the minimum window.
+
+- App harness: 109 tests executed, one explicitly skipped, no failures (107
+  repository app tests and the AppKit bootstrap passed). The native View-menu focus
+  test skips because this SwiftPM host cannot assign `NSApp.keyWindow`; it remains
+  available for a normal app test host. Eight existing PRNavigationTests are still
+  excluded for the previously documented native event-host stall.
+- Regression checks cover Cmd+Plus/equals/minus/zero with composer focus, saved
+  independent sizes and reset, upper/lower limits, invalid stored sizes, draft and
+  selection preservation, and IME composition. Native hosted views verify that
+  changing the observed preference updates the actual composer font and text.
+- `scripts/check.sh` passed: core checks, full strict Swift 6 typechecking,
+  avatar/status checks, plist validation, and generated project.
+- Inspected light/dark native renders at 160%, chat at 200% in a 900-point window,
+  and global 200% at the minimum 900×650 window. Existing normal-size layouts and
+  unified/split diff renders also passed. No provider or GitHub writes were needed.
+
+After installing, type an unsent chat draft and use Cmd+Plus, Cmd+Minus, and Cmd+0.
+Try the chat header's text-size menu, then reopen the app to check restored sizes.
+Check View-menu enablement while switching between workspace and Settings, and
+scroll the enlarged PR header at the minimum window size. These live native focus
+checks remain manual in this environment.
+
+![Enlarged workspace and chat text in light mode](assets/workspace-text-zoom-light.png)
+![Enlarged workspace and chat text in dark mode](assets/workspace-text-zoom-dark.png)
+
 ## Folder tree sidebar (0.9.1)
 
 Changes now groups files by expandable folders with compact directory chains,

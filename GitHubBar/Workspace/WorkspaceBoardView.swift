@@ -119,22 +119,22 @@ struct WorkspaceBoardView: View {
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(details?.primary.title ?? subject.key.description)
-                    .font(.subheadline.weight(.medium)).lineLimit(2)
+                    .workspaceFont(.subheadline.weight(.medium)).lineLimit(2)
                 Text("\(subject.key.description) · by \(details?.primary.author?.displayName ?? "unknown")")
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .workspaceFont(.caption).foregroundStyle(.secondary).lineLimit(1)
                 if let details {
                     Text("\(subject.isStack ? "Stack · \(details.members.count) PRs · " : "")Requested: \(requestedReviewerSummary(for: details.primary))")
-                        .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        .workspaceFont(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if let context {
                     Text(workspace.reviewPriority(for: context).reason)
-                        .font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                        .workspaceFont(.caption2).foregroundStyle(.secondary).lineLimit(2)
                 }
             }
             Spacer()
             if let context {
                 Text(workspace.reviewPriority(for: context).label)
-                    .font(.caption2).foregroundStyle(.orange)
+                    .workspaceFont(.caption2).foregroundStyle(.orange)
             }
             if !workspace.document.sessions(for: subject).isEmpty {
                 Image(systemName: "terminal").foregroundStyle(.secondary)
@@ -199,7 +199,7 @@ struct WorkspaceDetailView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(details?.primary.title ?? subject.key.description)
-                            .font(.title2.bold())
+                            .workspaceFont(.title2.bold())
                         Text("\(subject.key.description) · \(subject.isStack ? "Stack" : "Pull request")")
                             .foregroundStyle(.secondary)
                     }
@@ -225,7 +225,7 @@ struct WorkspaceDetailView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Link("#\(member.number) \(member.title)", destination: member.url)
                                         Text("By \(member.author?.displayName ?? "unknown") · Requested: \(requestedReviewerSummary(for: member))")
-                                            .font(.caption).foregroundStyle(.secondary)
+                                            .workspaceFont(.caption).foregroundStyle(.secondary)
 
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -254,12 +254,12 @@ struct WorkspaceDetailView: View {
                         if let primary = details?.primary {
                             let priority = workspace.reviewPriority(for: workspace.reviewContext(for: primary))
                             Text("Effective: \(priority.label) · \(priority.reason)")
-                                .font(.caption).foregroundStyle(.secondary)
+                                .workspaceFont(.caption).foregroundStyle(.secondary)
                         }
                         FlowTagsView(workspace: workspace, subject: subject, selectedIDs: resolved.tagIDs)
                         if let origin = resolved.updatedBy {
                             Text("Last local update by \(origin)")
-                                .font(.caption).foregroundStyle(.secondary)
+                                .workspaceFont(.caption).foregroundStyle(.secondary)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -269,7 +269,7 @@ struct WorkspaceDetailView: View {
                 GroupBox("Agent notes") {
                     VStack(alignment: .leading) {
                         TextEditor(text: $noteDraft)
-                            .font(.body)
+                            .workspaceFont(.body)
                             .frame(minHeight: 85)
                             .scrollContentBackground(.hidden)
                         Button("Save note") { workspace.setNote(noteDraft, for: subject) }
@@ -292,7 +292,7 @@ struct WorkspaceDetailView: View {
                         }
                         Divider()
                         Text("Pin an existing worktree or tmux session")
-                            .font(.subheadline.bold())
+                            .workspaceFont(.subheadline.bold())
                         HStack {
                             Picker("Agent", selection: $pinAgent) {
                                 ForEach(AgentKind.allCases, id: \.self) { agent in
@@ -327,7 +327,7 @@ struct WorkspaceDetailView: View {
                             Button("Save root") { workspace.saveWorktreeRoot(worktreeRoot) }
                         }
                         Text("New worktrees require origin to match the PR repository.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .workspaceFont(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.top, 8)
                 }
@@ -399,12 +399,12 @@ struct WorkspaceDetailView: View {
                 }
             }
             Text(session.worktreePath)
-                .font(.caption.monospaced())
+                .workspaceFont(.caption.monospaced())
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
             if let name = session.tmuxSessionName {
                 Text("tmux: \(name)")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .workspaceFont(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(8)
@@ -435,7 +435,7 @@ private struct FlowTagsView: View {
                     )
                 } label: {
                     Text(tag.name)
-                        .font(.caption)
+                        .workspaceFont(.caption)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .background(tag.color.swiftUIColor.opacity(selected ? 0.3 : 0.08), in: Capsule())

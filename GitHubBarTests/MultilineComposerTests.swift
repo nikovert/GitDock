@@ -4,6 +4,28 @@ import XCTest
 
 @MainActor
 final class MultilineComposerTests: XCTestCase {
+    func testChangingTextSizePreservesDraftAndSelection() {
+        let editor = ComposerTextView()
+        editor.string = "Keep this draft"
+        editor.setSelectedRange(NSRange(location: 5, length: 4))
+        editor.setWorkspaceTextScale(1.5)
+        XCTAssertEqual(editor.font?.pointSize ?? 0, NSFont.systemFontSize * 1.5, accuracy: 0.001)
+        XCTAssertEqual(editor.string, "Keep this draft")
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 5, length: 4))
+    }
+
+    func testZoomWaitsForInputCompositionToFinish() {
+        let editor = ComposerTextView()
+        editor.setWorkspaceTextScale(1)
+        editor.setMarkedText("日本", selectedRange: NSRange(location: 2, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        editor.setWorkspaceTextScale(2)
+        XCTAssertTrue(editor.hasMarkedText())
+        XCTAssertEqual(editor.font?.pointSize ?? 0, NSFont.systemFontSize, accuracy: 0.001)
+        editor.unmarkText()
+        XCTAssertEqual(editor.font?.pointSize ?? 0, NSFont.systemFontSize * 2, accuracy: 0.001)
+        XCTAssertEqual(editor.string, "日本")
+    }
+
     func testReturnSubmitsWithoutInsertingNewlineAndIgnoresKeyRepeat() {
         let editor = ComposerTextView()
         editor.string = "Explain the change"
