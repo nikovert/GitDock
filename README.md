@@ -1,6 +1,6 @@
 # GitHubBar
 
-**Your pull requests, code reviews, and coding agents—in one native Mac workspace.**
+**Your pull requests, code reviews, and coding agents in one native Mac workspace.**
 
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-0d1117?style=flat-square&logo=apple&logoColor=white)](https://github.com/nikovert/GitHubBar/releases)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](https://www.swift.org/)
@@ -10,7 +10,7 @@ review queue in a persistent menu bar popover. Use the resizable workspace to pr
 read diffs, draft and submit reviews, ask an agent questions, and jump into the
 terminal session attached to your worktree.
 
-[**Download v0.6.0 for macOS**](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.6.0-1/GitHubBar-validation-0.6.0-e922826d588c.zip) · [SHA-256](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.6.0-1/GitHubBar-validation-0.6.0-e922826d588c.zip.sha256) · [Release notes](https://github.com/nikovert/GitHubBar/releases/tag/validation-v0.6.0-1) · [Build from source](#build-from-source)
+[**Download v0.10.1 for macOS**](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.1-1/GitHubBar-validation-0.10.1-aebd68fea0e5.zip) · [SHA-256](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.1-1/GitHubBar-validation-0.10.1-aebd68fea0e5.zip.sha256) · [Latest release](https://github.com/nikovert/GitHubBar/releases/latest) · [Build from source](#build-from-source)
 
 ![Native dark-mode review workspace with split diffs, file navigation, review controls, and the agent chat panel](docs/assets/workspace-review-dark.png)
 
@@ -20,7 +20,6 @@ chat panel shows an example advisory answer.*
 > This is a development fork of
 > [FranciscoMoretti/GitHubBar](https://github.com/FranciscoMoretti/GitHubBar), with a
 > larger management workspace, in-app code review, and local agent integrations.
-> The v0.6.0 download predates the workspace improvements in the current source.
 
 ## Know what needs your attention
 
@@ -28,6 +27,13 @@ chat panel shows an example advisory answer.*
   My pull requests, Requested reviews, Pinned, Snoozed, and All PRs.
 - **Recognize the work immediately.** See titles, authors, requested reviewers,
   review status, age, activity, and the next action alongside each PR.
+- **See who has reviewed.** The full reviewer roster keeps requested people and
+  teams visible alongside completed reviewers, with ticks for confirmed approvals.
+  Approved follows GitHub's aggregate decision or verified approval requirements;
+  every requested reviewer does not have to approve.
+- **Keep the dashboard current.** Refresh removes merged and closed PRs from the
+  active cards. Native GitHub stacks appear as expandable groups; finished members
+  remain available as navigation context in PR details.
 - **Priorities with a reason.** Set a manual priority, inherit one from a stack,
   or use automatic ranking that favors PRs where you are the sole requested human
   reviewer. Configure priority authors to surface the work that matters to you.
@@ -39,14 +45,20 @@ chat panel shows an example advisory answer.*
   menu with <kbd>⌥</kbd><kbd>⌘</kbd><kbd>G</kbd>.
 - **Choose your appearance.** Follow macOS or choose Light or Dark in Settings.
 
-![Light-mode management workspace showing attention queues, PR metadata, priority reasons, age and activity, and the next review action](docs/assets/workspace-manage-light.png)
+![Light-mode dashboard showing attention queues, recent automatic worktree removals, and open PR cards](docs/assets/workspace-lifecycle-dashboard-light.png)
 
 *Dashboard in light mode. Activity uses GitHub's update timestamp, which can include bots.*
 
 ## Review code inside the app
 
-- **Unified and split diffs** with file navigation, line numbers, resizable file
-  lists, and resizable PR/chat panels. Use **Layout → Focus diff** for more reading space.
+- **Unified and split diffs** with a GitHub-style folder tree, path filtering,
+  viewed markers, and draft/discussion counts beside files. Resize the PR sidebar,
+  file list, and chat; hide panels or use **Layout → Focus diff** for more reading
+  space. Panel sizes and visibility persist; **Reset layout** restores the defaults.
+- **Readable text.** Use <kbd>⌘</kbd><kbd>+</kbd> or <kbd>⌘</kbd><kbd>−</kbd>
+  to resize workspace and chat text, and <kbd>⌘</kbd><kbd>0</kbd> to reset.
+  The chat header lets you resize messages, code, and the composer together
+  without changing workspace text.
 - **Overview, Changes, Threads, and Workspace tabs** for the description, checks,
   conversation, code, local notes, and attached sessions.
 - **Inline drafts and review submission.** Select a line, save a comment locally,
@@ -63,6 +75,8 @@ chat panel shows an example advisory answer.*
 - **Drafts stay attached to the code you reviewed.** State is scoped to the account,
   PR, head, and base. Earlier drafts remain accessible when the diff changes;
   failed submissions retain them.
+
+![Review workspace showing the full reviewer roster and approval states](docs/assets/workspace-reviewers-light.png)
 
 <details>
 <summary>See unified diffs in light mode</summary>
@@ -111,14 +125,25 @@ Create a Codex or Claude worktree/tmux session, or pin an existing session to a 
 or stack. **Jump to session** brings you back to the terminal work for that PR.
 
 After a successful refresh, automatic cleanup removes verified clean managed
-worktrees for merged PRs when no session is live. **Worktree cleanup…** shows results,
-retention reasons, an automatic-cleanup switch, and other configured-repository
-worktrees for manual approval. Live managed sessions require explicit approval to stop;
-unrelated sessions, terminal tabs, branch refs, notes and drafts stay intact.
+worktrees for merged PRs when no session is live. Local changes, ignored files,
+extra commits, and incomplete verification prevent automatic removal.
+
+Dashboard's **Recently auto-removed** list shows worktree names, PR titles, full paths,
+and removal times. The last completed check is timestamped even when it removes
+nothing. Earlier removals remain visible after empty checks and app restarts. If
+filesystem removal succeeds but saving session links fails, the removal is shown
+with a follow-up warning.
+
+Open **Review cleanup… → Recent cleanup activity** for recorded outcomes and
+retention reasons. The cleanup window also offers an automatic-cleanup switch
+and lists other configured-repository worktrees for manual approval. Live managed
+sessions require explicit approval to stop; unrelated sessions, terminal tabs,
+branch refs, notes and drafts stay intact.
 
 **Old drafts on GitHub…** flags your drafts after a configurable 30 days without
-GitHub activity. Select and confirm to close remote PRs, keeping their remote
-branches. Local worktrees are offered for separate manual cleanup.
+GitHub activity, including activity from bots. Select and confirm to close remote
+PRs, keeping their remote branches. Local worktrees are offered for separate manual
+cleanup; closing a draft does not automatically remove its worktree.
 
 The [agent workspace guide](docs/agent-workspace.md) covers checkout configuration,
 terminal sessions, stack inheritance, and updates through `GitHubBarWorkspaceCLI`.
@@ -145,16 +170,16 @@ GitHubBar requires **macOS 14 or newer** and supports **Apple Silicon and Intel*
    gh auth login
    ```
 
-2. Download the [v0.6.0 app ZIP](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.6.0-1/GitHubBar-validation-0.6.0-e922826d588c.zip) and its
-   [SHA-256 checksum](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.6.0-1/GitHubBar-validation-0.6.0-e922826d588c.zip.sha256).
+2. Download the [v0.10.1 app ZIP](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.1-1/GitHubBar-validation-0.10.1-aebd68fea0e5.zip) and its
+   [SHA-256 checksum](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.1-1/GitHubBar-validation-0.10.1-aebd68fea0e5.zip.sha256).
    This universal build supports both Apple Silicon and Intel Macs.
-   [Release notes](https://github.com/nikovert/GitHubBar/releases/tag/validation-v0.6.0-1) describe the included features.
+   [Release notes](https://github.com/nikovert/GitHubBar/releases/tag/validation-v0.10.1-1) describe the included features.
 
 3. Verify the downloaded ZIP, then unzip and move `GitHubBar.app` to **Applications**:
 
    ```sh
    cd ~/Downloads
-   shasum -a 256 --check GitHubBar-validation-*.zip.sha256
+   shasum -a 256 --check GitHubBar-validation-0.10.1-aebd68fea0e5.zip.sha256
    ```
 
 Validation builds are ad-hoc signed and not Apple-notarized. If macOS blocks the
@@ -190,10 +215,12 @@ The ZIP and checksum are written to `dist/`. The app bundles
 `GitHubBarWorkspaceCLI`, the chat adapter, and its setup guide. See
 [packaging checks](docs/agent-reviews.md#build-and-verify) before overriding paths.
 
-For the review-workspace implementation, **154 core tests, 59 app tests, and 11
-adapter tests passed**, alongside Swift 6 concurrency checks and light/dark render
-inspection. See the [validation report](docs/releases/2026-10-26-review-workspace-validation.md)
-for scope and limits. Run `scripts/check.sh` before contributing.
+The v0.10.1 validation ran **276 core tests**, **131 app tests** (one skipped), and
+**34 adapter tests**, with zero failures, alongside Swift 6 concurrency checks,
+universal packaging, and light/dark layout inspection at minimum and large window
+sizes. Eight existing PR navigation tests remain excluded because of a native event
+host limitation. See the [current validation report](docs/workspace-validation.md)
+for scope, limits, and manual checks. Run `scripts/check.sh` before contributing.
 
 ## Local state and privacy
 
