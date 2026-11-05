@@ -18,9 +18,15 @@ bots. Automatic urgency uses requested humans and priority authors; manual PR an
 stack priority takes precedence. Age is visible separately. Set priority authors
 from the toolbar's **… → Priority authors…** control.
 
-Native GitHub stacks expand into ordered member cards. Closed, merged, and members
+Native GitHub stacks expand into ordered open-member cards. Closed and merged PRs
+stay out of active dashboard cards; their links remain in stack details. Open members
 outside the current queue are labelled navigation context. Each matching open PR
 appears once. No inferred relationships are added.
+
+Confirmed merged/closed PRs and PRs absent from complete open-workload discovery are
+removed even if unrelated reviewer or repository metadata is incomplete. Genuinely
+unconfirmed rows remain after incomplete discovery. The dashboard shows partial or
+failed refresh information rather than implying every field is current.
 
 Approved follows the required approval count, independently of outstanding requests
 to other reviewers. GitHub's explicit aggregate decision takes precedence. When it
@@ -49,6 +55,13 @@ both sizes together; Cmd+0 resets both. Resizing preserves unsent text and selec
 and waits for active input-method composition to finish before changing its font.
 
 ## Review code and discussion
+
+The review header lists the full requested/completed reviewer roster. A green tick
+means a confirmed approval; changes requested, dismissed reviews, and outstanding
+requests have separate labels. A reviewer can be approved and requested again.
+Known requests remain visible during partial pagination, with incomplete data
+disclosed. Team requests do not inherit a person's approval. Long headers scroll;
+agent actions remain accessible below them.
 
 - **Overview** shows the description, checks, urgency reason, and retained drafts
   from earlier head/base revisions.
@@ -163,3 +176,44 @@ The Giles background worker integration has been retired from the app: no launch
 polling, request/re-request, job status, connection, or permission controls. Legacy
 worker files and external installations are left in place. The old CLI protocol
 remains for compatibility and is not driven by the app.
+
+## Worktree cleanup and old drafts
+
+**Automatic merged-worktree cleanup is enabled by default.** After a successful
+refresh, GitHubBar checks its managed worktrees and removes eligible merged work
+with no live session. Fresh PR/stack state, origin head, repository registration,
+local contents, account and ownership must agree. Uncommitted, untracked or ignored
+files, extra local commits, live sessions and detected working-directory processes
+retain the worktree with a reason. Ignored build caches can therefore block cleanup.
+Local branches, notes and draft/review history are retained; Git removal is never forced.
+Actual tracked bytes and executable/link types must match original HEAD objects;
+Git filters cannot hide local changes. Unsupported or oversized content is retained
+with an explanation (200,000 entries, 512 MiB per file and 2 GiB total verification limits).
+
+Open **Review cleanup…** on Dashboard or **… → Worktree cleanup…** to inspect results
+and change the automatic-cleanup switch. **Recent cleanup activity** keeps the last
+20 runs per account (up to 200 detailed entries per run; larger runs show a notice).
+Completed removals remain recorded even if cleanup is stopped or the account changes.
+
+GitHubBar also lists other Git-registered worktrees belonging to configured repository
+checkouts, including paths outside the managed root. These require manual approval.
+Unassociated worktrees must be clean and their exact head verified on a remote branch.
+Main checkouts, locked/prunable registrations, ambiguous paths, unverifiable origins,
+local-only commits and unrelated active sessions remain protected.
+
+The app cannot prove whether a live agent is idle. Stopping live managed sessions
+therefore requires explicit approval in the preview; unrelated sessions and terminal
+windows/tabs are left alone. Local processes are checked by their working directory;
+this does not identify every possible open editor buffer or file handle.
+
+**… → Old drafts on GitHub…** lists the monitored account's own open drafts under
+current repository scope. Dashboard flags drafts inactive for 30 days by default;
+change the day threshold in the sheet. Inactivity uses GitHub's last-updated time,
+including automation. Scan, select items, and confirm **Close drafts on GitHub** to
+close the remote PRs. Before each write the app rechecks account, author, permissions,
+draft/open state, head and activity against the preview. Changed drafts stay open;
+ambiguous responses require inspecting GitHub before a fresh explicit retry.
+
+Closing an old draft keeps its remote branch and local data. **Review local worktrees…**
+then offers manual cleanup of verified clean closed-draft worktrees. Such worktrees
+are never included in automatic merged-only removal.

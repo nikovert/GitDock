@@ -2,6 +2,13 @@ import XCTest
 @testable import GitHubBarCore
 
 final class WorktreeCleanupGitHubTests: XCTestCase {
+    func testClosedDraftEvidenceIsExplicitAndDoesNotBecomeMerged() async throws {
+        let result = try await makeClient(extra: "closed-draft").check(.pullRequest(key), accountLogin: "tester")
+        XCTAssertTrue(result.closed)
+        XCTAssertTrue(result.isDraft)
+        XCTAssertFalse(result.merged)
+    }
+
     func testDuplicateStackEntriesDoNotProveCompleteMembership() async throws {
         let client = makeClient(states: ["MERGED", "MERGED"], urls: [12, 12])
         let result = try await client.check(.stack(key), accountLogin: "tester")
@@ -56,6 +63,7 @@ final class WorktreeCleanupGitHubTests: XCTestCase {
         var pr: [String: Any] = ["title": "Finished change", "bodyText": "Handle missing sensor inputs.\n\nKeep the fallback active.",
             "state": "MERGED", "headRefOid": String(repeating: "a", count: 40),
             "stack": ["size": extra == "size" ? 3 : 2, "entries": ["nodes": nodes, "pageInfo": ["hasNextPage": extra == "truncated"]]]]
+        if extra == "closed-draft" { pr["state"] = "CLOSED"; pr["isDraft"] = true }
         if extra == "no-stack" { pr["stack"] = NSNull() }
         var json: [String: Any] = ["data": ["viewer": ["login": extra == "viewer" ? "wrong" : "tester"],
             "repository": ["pullRequest": extra == "missing" ? NSNull() as Any : pr as Any]]]

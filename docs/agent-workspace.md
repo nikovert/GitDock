@@ -111,39 +111,51 @@ preferences migrate once into independent app preferences without rewriting work
 
 ## Refresh and merged-worktree cleanup
 
-The Workspace Board has **Refresh** and **Clean up merged worktrees…** controls.
+The workspace has **Refresh** and **Worktree cleanup…** controls.
 Manual refresh during an existing reconciliation queues one follow-up refresh;
 repeated clicks coalesce. A disconnected account is rechecked. An explicit GitHub
 rate-limit reset remains respected, including after a partial refresh. One pending
 manual refresh runs when GitHub permits it again.
 
-Cleanup scans saved session links, including PRs no longer in the open workload.
+Automatic cleanup runs after successful refreshes for clean managed merged work
+with no live session. It is enabled by default and can be disabled in the cleanup
+sheet. Live agents are kept for explicit approval because the app cannot prove
+that a running session is idle. Recent activity records removals and retention reasons.
+
+Manual cleanup scans saved session links, including PRs no longer in the open workload,
+and other Git registrations belonging to configured repository checkouts.
 The preview and results show each PR's title, repository/number, and a short
 plain-text description excerpt, including stack members. PR links open GitHub for
 the full description. Details are also fetched for skipped worktrees; unavailable
 metadata is explicitly labelled and never makes a worktree eligible for removal.
 Scanning does not stop sessions or remove worktrees. Choose either:
 
-- **Stop and close all eligible worktrees** to explicitly approve the listed eligible
+- **Stop and clean all eligible worktrees** to explicitly approve the listed eligible
   worktrees and their managed sessions.
 - **Review individually** to see PR titles, numbers, repositories, local paths, session
   names/activity, and skip reasons. Nothing is preselected; choose rows and press
   **Stop and close selected**.
 
-Only GitHubBar-created linked worktrees under the configured root are eligible.
-The PR must be verified merged, and local HEAD must exactly match the PR head freshly
-fetched from origin and reported by GitHub. This also works after squash merges or
+Only GitHubBar-created linked worktrees under the configured root are automatic.
+The PR must be verified merged, and local HEAD must exactly match the PR head
+freshly fetched from origin and reported by GitHub. This also works after squash merges or
 source-branch deletion. Current stack membership is checked even when a session was
 originally linked to a single PR. Stacks require all members verified merged; missing,
 incomplete, or over-100-member stack metadata blocks cleanup.
 
-Modified, staged, untracked, ignored, sparse/hidden, locked, external, or unverifiable
+Modified, staged, untracked, ignored, sparse/hidden, locked, or unverifiable
 worktrees are skipped. GitHubBar checks again before stopping sessions and before
 removal. Changed configuration, HEAD, or session activity invalidates approval.
 Session checks include the tmux server PID/start time and session creation time,
 so restarting tmux and reusing a session ID requires a fresh scan.
 Unlinked tmux sessions prevent cleanup. Remaining same-user processes with a working
 directory inside the worktree also prevent removal; close them and scan again.
+
+Other registered worktrees require explicit manual approval, clean contents, and
+an exact head verified on a remote branch. Their local branches are retained; unrelated
+sessions block removal. Clean managed worktrees of verified closed drafts may also
+be reviewed manually. See [old draft cleanup](review-workspace.md#worktree-cleanup-and-old-drafts)
+for the separate, explicit action that closes selected remote draft PRs.
 
 Sessions are stopped by exact tmux session ID, not terminal-app-wide commands.
 Detached or independently started agents are not forcibly killed. Cleanup never uses

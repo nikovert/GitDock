@@ -394,7 +394,9 @@ private actor WorkloadFixtureTransport: GitHubTransport {
         case "SearchPullRequests":
             let query = variables?["query"] as? String ?? ""
             recordedSearchQueries.append(query)
-            if query.contains("user-review-requested:") {
+            if usesLargeRoster {
+                response = searchResponse(ids: query.contains("user-review-requested:") ? ["PR-1"] : [])
+            } else if query.contains("user-review-requested:") {
                 response = searchResponse(ids: ["PR-1"])
             } else if query.contains("team-review-requested:") {
                 response = searchResponse(ids: ["PR-1", "PR-2"])

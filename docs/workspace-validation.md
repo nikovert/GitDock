@@ -1,5 +1,76 @@
 # Workspace improvements: local validation
 
+## PR lifecycle, reviewers, and cleanup (0.10.0)
+
+Design decisions were approved through the fourteen questions captured in
+`docs/superpowers/specs/2026-11-05-pr-lifecycle-cleanup-design.md`.
+
+- Authoritative discovery and confirmed terminal-state evidence remove finished PRs
+  even during partial metadata refreshes. Incomplete lanes retain unconfirmed rows.
+  Closed/merged stack cards are excluded from Dashboard; history links remain in details.
+- Full reviewer rows retain effective opinions, completeness and positive request
+  evidence. Confirmed approvals tick green; partial requests stay visible without
+  implying that an unfetched reviewer has no request. Old cached data still decodes.
+- Automatic cleanup runs once per successful refresh, never from restored cache or
+  failed refresh, and avoids overlapping manual previews. Only managed, merged,
+  clean, exact-remote-head work without live sessions is automatic. Manual external
+  cleanup requires clean remote-backed commits and explicit approval. Local branches
+  and unrelated terminal sessions stay intact. Local changes include ignored files.
+- Old owned drafts use configurable 30-day GitHub updatedAt inactivity. Selection,
+  confirmation and fresh account/author/state/head/date/permission checks precede a
+  remote close. Remote branches stay intact. Confirmed closes offer manual local cleanup.
+- Cleanup history is account-scoped and keeps completed outcomes after cancellation
+  or account/config changes. Recent activity is bounded to 20 runs and 200 detailed
+  entries per run, with a truncation notice and full summary counts.
+
+Verification on the final source:
+
+- Core: **276 tests, zero failures**, including 51 cleanup and 12 stale-draft tests.
+- App harness: **125 tests executed, one skipped, zero failures**: 123 repository app
+  tests plus the AppKit bootstrap passed. One native View-menu focus test skips because
+  this SwiftPM host cannot make a key window; eight existing PRNavigationTests remain
+  excluded for the documented native event-host stall.
+- Python adapter fixtures: **34 tests passed**. No provider requests were made.
+- `scripts/check.sh` passed: core checks, strict Swift 6/macOS 14 app typechecking,
+  avatar/status checks, plist validation and regenerated Xcode project.
+- Inspected light/dark dashboard, five reviewer states, external/live/blocked cleanup
+  rows, old-draft selection/results at minimum and large sizes, and enlarged-text review.
+- Independent task reviews caught and fixed production `user:<login>` identity mismatch,
+  lost positive partial-review requests, final-query freshness races, and cancellation
+  history loss. Each has red/green regression evidence. Earlier in-flight/parallel runs
+  included transient failures; the final complete core run passed, including its
+  timing-sensitive process-timeout fixture.
+- Whole-branch review also reproduced filter-hidden byte loss and ignored executable
+  mode changes. Cleanup now hashes actual tracked file bytes/types/modes against original
+  HEAD objects, neutralizes content filters/replacement refs/grafts, and repeats checks
+  before ordinary removal. Cached-stat changes and symlink type/target changes have
+  fixtures. Verification is bounded to 200,000 entries, 512 MiB per file and 2 GiB total;
+  unsupported or oversized trees are retained with a reason.
+
+No live PRs were closed and no user worktrees or sessions were removed or stopped.
+Tests use controlled Git repositories, fake CLI sessions, and fake GitHub transports.
+Cross-process state cannot be made globally atomic by separate Git/tmux/GitHub checks;
+ordinary no-force Git removal and repeated checks retain work when evidence disagrees.
+Process checks cover current working directories, not every open file or editor buffer.
+
+Manual checks after installing:
+
+1. Refresh All PRs after merging a disposable PR; its active card should disappear,
+   including during unrelated metadata warnings. Review a PR with approved, pending,
+   dismissed and team reviewers.
+2. Use a disposable managed worktree with its session stopped; refresh and inspect
+   **Review cleanup…**. Try dirty, ignored-cache, live-session and extra-commit cases;
+   each must remain with a reason. Review an external tree before explicitly removing it.
+3. Inspect an old draft's displayed timestamp, select it and review the confirmation.
+   Only use a disposable draft for a real close; its branch must remain. A changed
+   draft must be retained. Review its local worktree separately.
+4. Check native menu focus, window reopening, and the header/agent actions at large text.
+
+![Dashboard lifecycle controls](assets/workspace-lifecycle-dashboard-light.png)
+![Full reviewer states](assets/workspace-reviewers-light.png)
+![Manual worktree approval](assets/workspace-cleanup-light.png)
+![Explicit old draft closing](assets/workspace-old-drafts-light.png)
+
 ## Workspace and chat text sizing (0.9.2)
 
 Cmd+Plus/Cmd+= and Cmd+Minus adjust workspace and chat text together in 10% steps,

@@ -31,6 +31,7 @@ final class WorkspaceModel {
     private(set) var reviewContexts: [String: AgentPRContext] = [:]
     var selectedSubject: BoardSubject?
     private var navigationPullRequest: PullRequestPresentation?
+    private var latestSuccessfulRefresh: Date?
     var errorMessage: String?
 
     @ObservationIgnored private let store: LocalWorkspaceStore
@@ -44,7 +45,8 @@ final class WorkspaceModel {
         store: LocalWorkspaceStore,
         sessions: AgentSessionManager,
         reviewStore: AgentReviewStore = AgentReviewStore(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        cleanupService: (any WorktreeCleanupServicing)? = nil
     ) {
         self.store = store
         self.sessions = sessions
@@ -60,7 +62,7 @@ final class WorkspaceModel {
                 defaults.set(legacy.priorityAuthors, forKey: Self.priorityAuthorsKey)
             }
         }
-        cleanup = WorktreeCleanupModel(service: WorktreeCleanupCoordinator(store: store, sessions: sessions))
+        cleanup = WorktreeCleanupModel(service: cleanupService ?? WorktreeCleanupCoordinator(store: store, sessions: sessions), defaults: defaults)
         cleanup.onCompletion = { [weak self] in await self?.reload() }
     }
 
@@ -84,6 +86,7 @@ final class WorkspaceModel {
         do {
             let loaded = try await store.load()
             cleanup.updateConfiguration(loaded.configuration)
+            if let date = latestSuccessfulRefresh { cleanup.automaticRefreshCompleted(at: date) }
             if loaded != document {
                 document = loaded
                 onDocumentChange?()
@@ -109,6 +112,7 @@ final class WorkspaceModel {
             monitoredAccountLogin = nil
         }
         if previousLogin?.lowercased() != monitoredAccountLogin?.lowercased() {
+            latestSuccessfulRefresh = nil
             if let navigationPullRequest,
                selectedSubject?.key == (try? PullRequestKey(url: navigationPullRequest.url)) {
                 selectedSubject = nil
@@ -117,6 +121,14 @@ final class WorkspaceModel {
         }
         reviewContexts = WorkspaceReviewContext.contexts(in: state)
         cleanup.updateAccount(monitoredAccountLogin)
+        if !state.isRefreshing, let date = state.lastUpdatedAt {
+            switch state.refreshHealth {
+            case .fresh, .partial:
+                latestSuccessfulRefresh = date
+                cleanup.automaticRefreshCompleted(at: date)
+            default: break
+            }
+        }
     }
 
     func openPullRequest(_ pullRequest: PullRequestPresentation) {

@@ -20,6 +20,9 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
 
     public func reconcile(account: ResolvedAccount) async -> WorkloadReconciliationResult {
         var metadata = MetadataAccumulator()
+        var reviewDiscoveryComplete = true
+        var teamsComplete = true
+        var authoredDiscoveryComplete = true
 
         let repositoryCatalog: [RepositoryChoice]
         do {
@@ -27,17 +30,27 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             repositoryCatalog = output.value
             metadata.merge(output.metadata)
         } catch {
-            metadata.record(error: error)
-            return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+            metadata.record(error: error, warning: "repository catalog incomplete")
+            if isAccessBlocking(error) {
+                return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+            }
+            repositoryCatalog = []
         }
         let teams: [TeamReference]
         do {
             let output = try await discoverTeams(account: account)
             teams = output.value
+            teamsComplete = output.metadata.warnings.isEmpty
+            reviewDiscoveryComplete = teamsComplete
             metadata.merge(output.metadata)
         } catch {
-            metadata.record(error: error)
-            return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+            metadata.record(error: error, warning: "team discovery incomplete")
+            if isAccessBlocking(error) {
+                return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+            }
+            teams = []
+            teamsComplete = false
+            reviewDiscoveryComplete = false
         }
 
         let directIDs: [String]
@@ -47,10 +60,15 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                 account: account
             )
             directIDs = output.value
+            reviewDiscoveryComplete = reviewDiscoveryComplete && output.metadata.warnings.isEmpty
             metadata.merge(output.metadata)
         } catch {
-            metadata.record(error: error)
-            return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+            metadata.record(error: error, warning: "direct-review discovery incomplete")
+            if isAccessBlocking(error) {
+                return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+            }
+            directIDs = []
+            reviewDiscoveryComplete = false
         }
 
         var teamIDs: [String] = []
@@ -60,9 +78,11 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                     query: "is:pr is:open team-review-requested:\(team.searchQualifier) sort:updated-asc",
                     account: account
                 )
+                reviewDiscoveryComplete = reviewDiscoveryComplete && output.metadata.warnings.isEmpty
                 teamIDs.append(contentsOf: output.value)
                 metadata.merge(output.metadata)
             } catch {
+                reviewDiscoveryComplete = false
                 metadata.record(error: error, warning: "team-review discovery incomplete")
             }
         }
@@ -74,10 +94,15 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                 account: account
             )
             authoredIDs = output.value
+            authoredDiscoveryComplete = output.metadata.warnings.isEmpty
             metadata.merge(output.metadata)
         } catch {
-            metadata.record(error: error)
-            return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+            metadata.record(error: error, warning: "authored discovery incomplete")
+            if isAccessBlocking(error) {
+                return .failed(failure(for: error, fallback: .discovery), metadata.presentation)
+            }
+            authoredIDs = []
+            authoredDiscoveryComplete = false
         }
 
         let reviewDiscoveryIDs = Set(directIDs + teamIDs)
@@ -87,9 +112,8 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         let hydrationOutput = await hydrateAll(ids: allIDs, account: account)
         var hydratedRecords = hydrationOutput.value
         metadata.merge(hydrationOutput.metadata)
-
-        if !allIDs.isEmpty, hydratedRecords.isEmpty {
-            return .failed(metadata.blockingFailure ?? .hydration, metadata.presentation)
+        if hydratedRecords.isEmpty && !reviewDiscoveryComplete && !authoredDiscoveryComplete {
+            return .failed(metadata.blockingFailure ?? .discovery, metadata.presentation)
         }
 
         let stackMemberOutput = await hydrateMissingStackMembers(
@@ -170,6 +194,19 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             authoredPullRequests: authoredPullRequests,
             pullRequestStacks: PullRequestStackResolver.stacks(
                 in: hydratedRecords.map(\.presentation)
+            ),
+            membershipEvidence: WorkloadMembershipEvidence(
+                reviewDiscoveryIDs: reviewDiscoveryComplete ? reviewDiscoveryIDs : nil,
+                authoredDiscoveryIDs: authoredDiscoveryComplete ? authoredDiscoveryIDs : nil,
+                excludedReviewIDs: Set(hydratedRecords.filter { record in
+                    record.state != .open || record.isDraft
+                        || (record.requestsComplete && !record.reviewRequestsPageInfo.hasNextPage
+                            && (teamsComplete || !record.requestedReviewerKeys.contains { $0.hasPrefix("team:") })
+                            && record.requestedReviewerKeys.isDisjoint(with: monitoredReviewerKeys))
+                }.map(\.id)),
+                excludedAuthoredIDs: Set(hydratedRecords.filter {
+                    $0.state != .open || $0.author.displayName.caseInsensitiveCompare(account.login) != .orderedSame
+                }.map(\.id))
             )
         )
 
@@ -230,6 +267,10 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                     account: account
                 )
                 organizations.append(contentsOf: page.data.viewer.organizations.nodes.map(\.login))
+                if page.data.viewer.organizations.pageInfo.hasNextPage
+                    && page.data.viewer.organizations.pageInfo.endCursor == nil {
+                    metadata.warnings.append("organization discovery incomplete")
+                }
                 metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "organization discovery incomplete")
                 cursor = page.data.viewer.organizations.pageInfo.hasNextPage
                     ? page.data.viewer.organizations.pageInfo.endCursor
@@ -259,6 +300,9 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                     guard let organizationData = page.data.organization else {
                         metadata.warnings.append("organization team discovery incomplete")
                         break
+                    }
+                    if organizationData.teams.pageInfo.hasNextPage && organizationData.teams.pageInfo.endCursor == nil {
+                        metadata.warnings.append("organization team discovery incomplete")
                     }
                     teams.append(contentsOf: organizationData.teams.nodes.map {
                         TeamReference(
@@ -292,6 +336,7 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
     ) async throws -> OperationOutput<[String]> {
         var metadata = MetadataAccumulator()
         var ids: [String] = []
+        var expectedCount: Int?
         var cursor: String?
 
         repeat {
@@ -302,7 +347,12 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                     variables: SearchVariables(query: searchQuery, cursor: cursor),
                     account: account
                 )
+                expectedCount = page.data.search.issueCount ?? expectedCount
                 ids.append(contentsOf: page.data.search.nodes.compactMap(\.id))
+                if page.data.search.nodes.contains(where: { $0.id == nil })
+                    || (page.data.search.pageInfo.hasNextPage && page.data.search.pageInfo.endCursor == nil) {
+                    metadata.warnings.append("pull-request search incomplete")
+                }
                 metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "pull-request search incomplete")
                 cursor = page.data.search.pageInfo.hasNextPage ? page.data.search.pageInfo.endCursor : nil
             } catch {
@@ -312,6 +362,9 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
             }
         } while cursor != nil
 
+        if let expectedCount, Set(ids).count < expectedCount {
+            metadata.warnings.append("pull-request search incomplete")
+        }
         return OperationOutput(value: Array(Set(ids)), metadata: metadata)
     }
 
@@ -325,6 +378,9 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
         var metadata = MetadataAccumulator()
         metadata.record(rateLimit: page.data.rateLimit, hasErrors: page.hasErrors, warning: "pull-request hydration incomplete")
         var records = page.data.nodes.compactMap { $0.flatMap(HydratedRecord.init) }
+        if Set(records.map(\.id)) != Set(ids) {
+            metadata.warnings.append("pull-request hydration incomplete")
+        }
         if page.hasErrors {
             for index in records.indices {
                 records[index].requestsComplete = false
@@ -355,12 +411,12 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                         warning: "review roster pagination incomplete"
                     )
                     if rosterPage.hasErrors {
-                        records[index].requestsComplete = false
-                        records[index].reviewsComplete = false
+                        if includeReviewRequests { records[index].requestsComplete = false }
+                        if includeReviews { records[index].reviewsComplete = false }
                     }
                     guard let pullRequest = rosterPage.data.node else {
-                        records[index].requestsComplete = false
-                        records[index].reviewsComplete = false
+                        if includeReviewRequests { records[index].requestsComplete = false }
+                        if includeReviews { records[index].reviewsComplete = false }
                         metadata.warnings.append("review roster pagination incomplete")
                         break
                     }
@@ -384,14 +440,25 @@ public struct GraphQLGitHubWorkloadClient: GitHubWorkloadClient {
                         break
                     }
                 } catch {
-                    records[index].requestsComplete = false
-                    records[index].reviewsComplete = false
+                    if includeReviewRequests { records[index].requestsComplete = false }
+                    if includeReviews { records[index].reviewsComplete = false }
                     metadata.warnings.append("review roster pagination incomplete")
                     break
                 }
             }
         }
 
+        for index in records.indices {
+            if records[index].reviews.contains(where: {
+                $0.author == nil && $0.state != .commented && $0.state != .pending
+            }) {
+                records[index].reviewsComplete = false
+            }
+            if !records[index].reviewsComplete || !records[index].requestsComplete
+                || records[index].reviewsPageInfo.hasNextPage || records[index].reviewRequestsPageInfo.hasNextPage {
+                metadata.warnings.append("review roster incomplete")
+            }
+        }
         return OperationOutput(
             value: records,
             metadata: metadata
@@ -675,6 +742,7 @@ private extension GraphQLGitHubWorkloadClient {
     static let searchPullRequestsQuery = #"""
     query SearchPullRequests($query: String!, $cursor: String) {
       search(query: $query, type: ISSUE, first: 100, after: $cursor) {
+        issueCount
         nodes { ... on PullRequest { id } }
         pageInfo { hasNextPage endCursor }
       }
@@ -991,6 +1059,7 @@ private struct SearchPullRequestsData: Decodable, Sendable {
 }
 
 private struct SearchConnectionDTO: Decodable, Sendable {
+    let issueCount: Int?
     let nodes: [SearchNodeDTO]
     let pageInfo: PageInfoDTO
 }
@@ -1255,9 +1324,24 @@ private struct HydratedRecord: Sendable {
             if reviewersByID[reviewer.id] == nil { reviewerOrder.append(reviewer.id) }
             reviewersByID[reviewer.id] = reviewer
         }
-        for reviewer in reviews.compactMap(\.reviewerPresentation) where reviewer.id != author.id {
+        let historyComplete = reviewsComplete && !reviewsPageInfo.hasNextPage
+        let requestListComplete = requestsComplete && !reviewRequestsPageInfo.hasNextPage
+        // GitHub's review connection is chronological. Comment and pending activity do not
+        // replace a submitted opinion; a dismissal explicitly removes the old opinion.
+        for review in reviews {
+            guard let reviewer = review.author?.reviewerPresentation, reviewer.id != author.id else { continue }
+            let state: ReviewerPresentation.ReviewState
+            switch review.state {
+            case .approved: state = .approved
+            case .changesRequested: state = .changesRequested
+            case .dismissed: state = .dismissed
+            case .commented, .pending: continue
+            }
             if reviewersByID[reviewer.id] == nil { reviewerOrder.append(reviewer.id) }
-            reviewersByID[reviewer.id] = reviewer
+            reviewersByID[reviewer.id] = ReviewerPresentation(
+                id: reviewer.id, displayName: reviewer.displayName, avatarURL: reviewer.avatarURL, kind: reviewer.kind,
+                reviewState: state, reviewStateIsComplete: historyComplete,
+                isRequested: requestedReviewerKeys.contains(reviewer.id) ? true : requestListComplete ? false : nil)
         }
 
         return PullRequestPresentation(
@@ -1276,15 +1360,9 @@ private struct HydratedRecord: Sendable {
             updatedAt: updatedAt,
             requestedReviewers: requestsComplete && !reviewRequestsPageInfo.hasNextPage ? requestedReviewerPresentations : nil,
             reviewers: reviewerOrder.compactMap { reviewersByID[$0] },
-            headSHA: headSHA
+            headSHA: headSHA,
+            reviewRosterIsComplete: historyComplete && requestsComplete && !reviewRequestsPageInfo.hasNextPage
         )
-    }
-}
-
-private extension ReviewDTO {
-    var reviewerPresentation: ReviewerPresentation? {
-        guard state == .approved || state == .changesRequested else { return nil }
-        return author?.reviewerPresentation
     }
 }
 
@@ -1314,7 +1392,8 @@ private extension RequestedReviewerDTO {
                 id: reviewerKey,
                 displayName: displayName,
                 avatarURL: avatarURL.flatMap(URL.init(string:)),
-                kind: .team
+                kind: .team,
+                isRequested: true
             )
         }
         guard let login else { return nil }
@@ -1322,7 +1401,8 @@ private extension RequestedReviewerDTO {
             id: reviewerKey,
             displayName: login,
             avatarURL: avatarURL.flatMap(URL.init(string:)),
-            kind: typeName == "Bot" ? .bot : .person
+            kind: typeName == "Bot" ? .bot : .person,
+            isRequested: true
         )
     }
 }

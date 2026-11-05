@@ -110,10 +110,15 @@ data is retained, and ordinary local terminal sessions remain available.
 Create a Codex or Claude worktree/tmux session, or pin an existing session to a PR
 or stack. **Jump to session** brings you back to the terminal work for that PR.
 
-When the work is merged, **Clean up merged worktrees…** previews eligible worktrees
-with PR titles and short descriptions. Cleanup checks repository state and sync
-with origin. If sessions are attached, choose whether to stop all eligible sessions
-or review the list and select individually.
+After a successful refresh, automatic cleanup removes verified clean managed
+worktrees for merged PRs when no session is live. **Worktree cleanup…** shows results,
+retention reasons, an automatic-cleanup switch, and other configured-repository
+worktrees for manual approval. Live managed sessions require explicit approval to stop;
+unrelated sessions, terminal tabs, branch refs, notes and drafts stay intact.
+
+**Old drafts on GitHub…** flags your drafts after a configurable 30 days without
+GitHub activity. Select and confirm to close remote PRs, keeping their remote
+branches. Local worktrees are offered for separate manual cleanup.
 
 The [agent workspace guide](docs/agent-workspace.md) covers checkout configuration,
 terminal sessions, stack inheritance, and updates through `GitHubBarWorkspaceCLI`.
@@ -178,7 +183,7 @@ integrations; terminal automation may prompt for macOS permission on first use.
 To create a universal validation ZIP locally without installing the app:
 
 ```bash
-GITHUBBAR_VERSION=0.6.0 scripts/package-validation.sh
+GITHUBBAR_VERSION=0.10.0 scripts/package-validation.sh
 ```
 
 The ZIP and checksum are written to `dist/`. The app bundles

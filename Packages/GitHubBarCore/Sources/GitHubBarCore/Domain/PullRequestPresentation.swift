@@ -16,6 +16,7 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
     public let updatedAt: Date
     public let requestedReviewers: [ReviewerPresentation]?
     public let reviewers: [ReviewerPresentation]
+    public let reviewRosterIsComplete: Bool
     public let headSHA: String?
 
     public init(
@@ -34,7 +35,8 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         updatedAt: Date,
         requestedReviewers: [ReviewerPresentation]? = [],
         reviewers: [ReviewerPresentation],
-        headSHA: String? = nil
+        headSHA: String? = nil,
+        reviewRosterIsComplete: Bool = false
     ) {
         self.id = id
         self.repositoryID = repositoryID
@@ -52,6 +54,26 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         self.requestedReviewers = requestedReviewers
         self.reviewers = reviewers
         self.headSHA = headSHA
+        self.reviewRosterIsComplete = reviewRosterIsComplete
+    }
+
+    /// Union requests with submitted-review participants, including older cached rows where
+    /// only the request list was populated. Submitted opinion evidence wins duplicate IDs.
+    public var reviewRoster: [ReviewerPresentation] {
+        let requestedIDs = Set((requestedReviewers ?? []).map { $0.id.lowercased() })
+        var order: [String] = []
+        var byID: [String: ReviewerPresentation] = [:]
+        for reviewer in (requestedReviewers ?? []) + reviewers {
+            let key = reviewer.id.lowercased()
+            guard key != author?.id.lowercased() else { continue }
+            if byID[key] == nil { order.append(key) }
+            let isRequested: Bool? = requestedIDs.contains(key) ? true
+                : requestedReviewers != nil ? false : reviewer.isRequested
+            byID[key] = ReviewerPresentation(id: reviewer.id, displayName: reviewer.displayName,
+                avatarURL: reviewer.avatarURL, kind: reviewer.kind, reviewState: reviewer.reviewState,
+                reviewStateIsComplete: reviewer.reviewStateIsComplete, isRequested: isRequested)
+        }
+        return order.compactMap { byID[$0] }
     }
 
     public var authoredSection: AuthoredPullRequestSection? {
@@ -74,7 +96,7 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         case id, repositoryID, repositoryNameWithOwner
         case number, title, url, isDraft, state, author
         case reviewDecision, stackMembership, createdAt, updatedAt, requestedReviewers, reviewers
-        case headSHA
+        case headSHA, reviewRosterIsComplete
     }
 
     public init(from decoder: any Decoder) throws {
@@ -96,6 +118,7 @@ public struct PullRequestPresentation: Codable, Equatable, Identifiable, Sendabl
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         reviewers = try container.decode([ReviewerPresentation].self, forKey: .reviewers)
+        reviewRosterIsComplete = try container.decodeIfPresent(Bool.self, forKey: .reviewRosterIsComplete) ?? false
         headSHA = try container.decodeIfPresent(String.self, forKey: .headSHA)
         requestedReviewers = try container.decodeIfPresent(
             [ReviewerPresentation].self,
@@ -146,12 +169,39 @@ public struct ReviewerPresentation: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let displayName: String
     public let avatarURL: URL?
-    public let kind: Kind
+    public enum ReviewState: String, Codable, Equatable, Sendable {
+        case approved, changesRequested, dismissed
+    }
 
-    public init(id: String, displayName: String, avatarURL: URL?, kind: Kind) {
+    public let kind: Kind
+    public let reviewState: ReviewState?
+    public let reviewStateIsComplete: Bool
+    /// True is positive request evidence. Nil means an incomplete request list cannot prove absence.
+    public let isRequested: Bool?
+
+    public init(id: String, displayName: String, avatarURL: URL?, kind: Kind,
+                reviewState: ReviewState? = nil, reviewStateIsComplete: Bool = false, isRequested: Bool? = nil) {
         self.id = id
         self.displayName = displayName
         self.avatarURL = avatarURL
         self.kind = kind
+        self.reviewState = reviewState
+        self.reviewStateIsComplete = reviewStateIsComplete
+        self.isRequested = isRequested
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, displayName, avatarURL, kind, reviewState, reviewStateIsComplete, isRequested
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        displayName = try c.decode(String.self, forKey: .displayName)
+        avatarURL = try c.decodeIfPresent(URL.self, forKey: .avatarURL)
+        kind = try c.decode(Kind.self, forKey: .kind)
+        reviewState = try c.decodeIfPresent(ReviewState.self, forKey: .reviewState)
+        reviewStateIsComplete = try c.decodeIfPresent(Bool.self, forKey: .reviewStateIsComplete) ?? false
+        isRequested = try c.decodeIfPresent(Bool.self, forKey: .isRequested)
     }
 }

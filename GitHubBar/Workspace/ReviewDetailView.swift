@@ -8,16 +8,27 @@ struct ReviewDetailView: View {
     let stacks: [PullRequestStack]
     @Bindable var layout: WorkspaceLayout
     @State private var submissionTarget: ReviewSubmissionTarget?
+    @State private var headerHeight: CGFloat = 0
     @Environment(\.workspaceTextScale) private var textScale
 
     var body: some View {
         GeometryReader { geometry in
             VStack(alignment: .leading, spacing: 0) {
                 if let subject = workspace.selectedSubject {
-                    if textScale > 1.3 {
-                        ScrollView { header(subject) }
-                            .frame(height: min(280, geometry.size.height * 0.45))
+                    if textScale > 1.3 || (pullRequest?.reviewRoster.count ?? 0) > 4 {
+                        let limit = min(320, max(150, geometry.size.height - 400))
+                        ScrollView {
+                            header(subject).fixedSize(horizontal: false, vertical: true)
+                                .background(GeometryReader { proxy in
+                                    Color.clear.preference(key: ReviewHeaderHeight.self, value: proxy.size.height)
+                                })
+                        }
+                        .frame(height: min(headerHeight > 0 ? headerHeight : limit, limit))
+                        .onPreferenceChange(ReviewHeaderHeight.self) { headerHeight = $0 }
                     } else { header(subject) }
+                    ReviewAgentActionsView(review: review, workspace: workspace,
+                        allowsActions: !subject.isStack && pullRequest?.state != .closed && pullRequest?.state != .merged)
+                        .padding(.horizontal, 20).padding(.bottom, 14)
                     Picker("PR detail", selection: $review.tab) {
                         ForEach(ReviewWorkspaceTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                     }.pickerStyle(.segmented).labelsHidden().padding(.horizontal, 20).padding(.bottom, 14)
@@ -82,15 +93,12 @@ struct ReviewDetailView: View {
                     Text(pr.reviewDecision?.rawValue.replacingOccurrences(of: "_", with: " ").capitalized ?? (pr.isDraft ? "Draft" : "Awaiting review"))
                         .workspaceFont(.caption).padding(.horizontal, 8).padding(.vertical, 4)
                         .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 5))
-                    Text("Reviewers: \(requestedReviewerSummary(for: pr))")
-                        .workspaceFont(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
+                ReviewReviewerRosterView(pullRequest: pr)
             }
             if let snapshot = review.snapshot {
                 Text(snapshot.checksSummary).workspaceFont(.caption).foregroundStyle(.secondary)
             }
-            ReviewAgentActionsView(review: review, workspace: workspace,
-                allowsActions: !subject.isStack && pullRequest?.state != .closed && pullRequest?.state != .merged)
         }.padding(20)
     }
 
@@ -200,6 +208,11 @@ struct ReviewDetailView: View {
         }
     }
 
+}
+
+private struct ReviewHeaderHeight: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 struct ReviewSubmissionTarget: Identifiable {

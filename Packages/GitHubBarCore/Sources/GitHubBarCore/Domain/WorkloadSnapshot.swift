@@ -17,11 +17,12 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
     public let needsYourReview: [PullRequestPresentation]
     public let authoredPullRequests: [PullRequestPresentation]
     public let pullRequestStacks: [PullRequestStack]
+    public let membershipEvidence: WorkloadMembershipEvidence?
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, hostname, accountLogin, capturedAt, completeness, availableRepositories
         case needsYourReview = "waitingForReview"
-        case authoredPullRequests, pullRequestStacks
+        case authoredPullRequests, pullRequestStacks, membershipEvidence
     }
 
     public init(
@@ -33,7 +34,8 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
         availableRepositories: [RepositoryChoice],
         needsYourReview: [PullRequestPresentation],
         authoredPullRequests: [PullRequestPresentation],
-        pullRequestStacks: [PullRequestStack] = []
+        pullRequestStacks: [PullRequestStack] = [],
+        membershipEvidence: WorkloadMembershipEvidence? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.hostname = hostname
@@ -44,6 +46,7 @@ public struct WorkloadSnapshot: Codable, Equatable, Sendable {
         self.needsYourReview = needsYourReview
         self.authoredPullRequests = authoredPullRequests
         self.pullRequestStacks = pullRequestStacks
+        self.membershipEvidence = membershipEvidence
     }
 }
 
@@ -58,12 +61,20 @@ public extension WorkloadSnapshot {
         let confirmedIDs = Set(needsYourReview.map(\.id) + authoredPullRequests.map(\.id))
         let mergedWaiting = Self.merge(
             confirmed: needsYourReview,
-            retained: previous.needsYourReview.filter { !confirmedIDs.contains($0.id) },
+            retained: previous.needsYourReview.filter {
+                !confirmedIDs.contains($0.id) && $0.state == .open
+                    && (membershipEvidence?.reviewDiscoveryIDs?.contains($0.id) ?? true)
+                    && !(membershipEvidence?.excludedReviewIDs.contains($0.id) ?? false)
+            },
             mostRecentFirst: false
         )
         let mergedAuthored = Self.merge(
             confirmed: authoredPullRequests,
-            retained: previous.authoredPullRequests.filter { !confirmedIDs.contains($0.id) },
+            retained: previous.authoredPullRequests.filter {
+                !confirmedIDs.contains($0.id) && $0.state == .open
+                    && (membershipEvidence?.authoredDiscoveryIDs?.contains($0.id) ?? true)
+                    && !(membershipEvidence?.excludedAuthoredIDs.contains($0.id) ?? false)
+            },
             mostRecentFirst: true
         )
         let repositoryByID = Dictionary(
@@ -107,7 +118,8 @@ public extension WorkloadSnapshot {
             pullRequestStacks: stacksByID.values.sorted {
                 (($0.root ?? $0.pullRequests.first)?.updatedAt ?? .distantPast)
                     < (($1.root ?? $1.pullRequests.first)?.updatedAt ?? .distantPast)
-            }
+            },
+            membershipEvidence: membershipEvidence
         )
     }
 
@@ -122,5 +134,22 @@ public extension WorkloadSnapshot {
             }
             return $0.id < $1.id
         }
+    }
+}
+
+/// Membership authority is independent of unrelated catalog, stack and review-history warnings.
+/// A nil discovery list means discovery was incomplete; discovered-but-unhydrated rows stay usable.
+public struct WorkloadMembershipEvidence: Codable, Equatable, Sendable {
+    public let reviewDiscoveryIDs: Set<String>?
+    public let authoredDiscoveryIDs: Set<String>?
+    public let excludedReviewIDs: Set<String>
+    public let excludedAuthoredIDs: Set<String>
+
+    public init(reviewDiscoveryIDs: Set<String>? = nil, authoredDiscoveryIDs: Set<String>? = nil,
+                excludedReviewIDs: Set<String> = [], excludedAuthoredIDs: Set<String> = []) {
+        self.reviewDiscoveryIDs = reviewDiscoveryIDs
+        self.authoredDiscoveryIDs = authoredDiscoveryIDs
+        self.excludedReviewIDs = excludedReviewIDs
+        self.excludedAuthoredIDs = excludedAuthoredIDs
     }
 }

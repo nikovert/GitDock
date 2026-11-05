@@ -9,6 +9,14 @@ public struct WorktreeCleanupGitHubClient: WorktreeCleanupGitHubChecking {
         self.connection = connection; self.transport = transport
     }
 
+    public func verifyAccount(accountLogin: String) async throws {
+        guard !accountLogin.isEmpty,
+              case let .connected(account) = await connection.inspect(selectedLogin: accountLogin),
+              account.login.lowercased() == accountLogin.lowercased(), account.hostname == "github.com" else {
+            throw CleanupBlocked("Could not verify the monitored GitHub account.")
+        }
+    }
+
     public func check(_ subject: BoardSubject, accountLogin: String) async throws -> WorktreeCleanupPR {
         guard !accountLogin.isEmpty,
               case let .connected(account) = await connection.inspect(selectedLogin: accountLogin),
@@ -39,7 +47,7 @@ public struct WorktreeCleanupGitHubClient: WorktreeCleanupGitHubChecking {
             body: pr.bodyText, stackPullRequests: members.compactMap { member in
                 guard let url = URL(string: member.url), let key = try? PullRequestKey(url: url) else { return nil }
                 return WorktreeCleanupPRSummary(key: key, title: member.title, body: member.bodyText)
-            })
+            }, closed: pr.state == "CLOSED", isDraft: pr.isDraft ?? false)
     }
 
     private static let query = """
@@ -47,7 +55,7 @@ public struct WorktreeCleanupGitHubClient: WorktreeCleanupGitHubChecking {
       viewer { login }
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
-          title bodyText state headRefOid
+          title bodyText state headRefOid isDraft
           stack {
             size
             entries(first: 100) {
@@ -76,6 +84,7 @@ public struct WorktreeCleanupGitHubClient: WorktreeCleanupGitHubChecking {
         let bodyText: String
         let state: String
         let headRefOid: String
+        let isDraft: Bool?
         let stack: Stack?
     }
     private struct Stack: Decodable { let size: Int; let entries: Entries }

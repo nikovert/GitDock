@@ -63,10 +63,16 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
         let pr = PullRequestPresentation(id: "184", repositoryID: "repo", repositoryNameWithOwner: "example/controllers",
             number: 184, title: "Handle missing sensor inputs without losing the previous valid control state",
             url: key.url, isDraft: false,
-            author: PullRequestAuthorPresentation(id: "alex", displayName: "alex", avatarURL: nil),
+            author: PullRequestAuthorPresentation(id: "user:alex", displayName: "alex", avatarURL: nil),
             reviewDecision: .reviewRequired, stackMembership: PullRequestStackMembership(id: "stack", number: 20, size: 2, position: 2), createdAt: .now.addingTimeInterval(-172800), updatedAt: .now.addingTimeInterval(-7200),
-            requestedReviewers: [ReviewerPresentation(id: "tester", displayName: "tester", avatarURL: nil, kind: .person)],
-            reviewers: [], headSHA: "abc123")
+            requestedReviewers: [ReviewerPresentation(id: "user:tester", displayName: "tester", avatarURL: nil, kind: .person),
+                ReviewerPresentation(id: "team:example/control", displayName: "example/control", avatarURL: nil, kind: .team)],
+            reviewers: [ReviewerPresentation(id: "user:tester", displayName: "tester", avatarURL: nil, kind: .person),
+                ReviewerPresentation(id: "team:example/control", displayName: "example/control", avatarURL: nil, kind: .team),
+                ReviewerPresentation(id: "user:sam", displayName: "sam", avatarURL: nil, kind: .person, reviewState: .approved, reviewStateIsComplete: true),
+                ReviewerPresentation(id: "user:kim", displayName: "kim", avatarURL: nil, kind: .person, reviewState: .changesRequested, reviewStateIsComplete: true),
+                ReviewerPresentation(id: "user:riley", displayName: "riley", avatarURL: nil, kind: .person, reviewState: .dismissed, reviewStateIsComplete: true)],
+            headSHA: "abc123", reviewRosterIsComplete: true)
         var state = AppPresentationState.empty
         state.accountConnection = .connected(login: "tester", accessCoverage: AccessCoverage(isComplete: true))
         state.needsYourReview = [pr]
@@ -77,7 +83,11 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
         state.authoredPullRequests = [PullRequestPresentation(id: "201", repositoryID: "repo", repositoryNameWithOwner: "example/controllers", number: 201,
             title: "Add validation for sensor configuration", url: URL(string: "https://github.com/example/controllers/pull/201")!, isDraft: false,
             author: PullRequestAuthorPresentation(id: "tester", displayName: "tester", avatarURL: nil), reviewDecision: .approved,
-            createdAt: .now.addingTimeInterval(-86400), updatedAt: .now.addingTimeInterval(-3600), reviewers: [])]
+            createdAt: .now.addingTimeInterval(-86400), updatedAt: .now.addingTimeInterval(-3600), reviewers: []),
+            PullRequestPresentation(id: "202", repositoryID: "repo", repositoryNameWithOwner: "example/controllers", number: 202,
+                title: "Explore an alternate controller interface", url: URL(string: "https://github.com/example/controllers/pull/202")!, isDraft: true,
+                author: PullRequestAuthorPresentation(id: "user:tester", displayName: "tester", avatarURL: nil),
+                createdAt: .now.addingTimeInterval(-120 * 86_400), updatedAt: .now.addingTimeInterval(-45 * 86_400), reviewers: [])]
         workspace.updateWorkload(state)
         workspace.openPullRequest(pr)
         let app = AppModel(engine: WorkloadEngine(), initialState: state)

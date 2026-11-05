@@ -10,6 +10,10 @@ struct ReviewWorkspaceView: View {
     @State var textSize = WorkspaceTextSize()
     @AppStorage("githubbar.chat.configuration") private var configurationData = Data()
     @State private var showsCleanup = false
+    @State private var showsStaleDrafts = false
+    @State private var opensCleanupAfterDrafts = false
+    @State private var staleDraftCleanup = StaleDraftCleanupModel()
+    @AppStorage("staleDraftInactiveDays") private var staleDraftInactiveDays = 30
     @State private var showsChatSettings = false
     @State private var showsPriorityAuthors = false
     @State private var priorityAuthorsText = ""
@@ -33,6 +37,13 @@ struct ReviewWorkspaceView: View {
     }
     private var navigationID: String {
         "\(account ?? "")|\(workspace.selectedSubject?.key.description ?? "")|\(selectedPR?.headSHA ?? "")"
+    }
+    private var oldDraftCount: Int {
+        guard let account, staleDraftInactiveDays > 0 else { return 0 }
+        let cutoff = Date.now.addingTimeInterval(-Double(staleDraftInactiveDays) * 86_400)
+        return appModel.state.authoredPullRequests.filter {
+            $0.state == .open && $0.isDraft && $0.author?.displayName.lowercased() == account.lowercased() && $0.updatedAt <= cutoff
+        }.count
     }
 
     var body: some View {
@@ -79,6 +90,16 @@ struct ReviewWorkspaceView: View {
         .workspaceTextSizing(textSize.workspaceScale)
         .frame(minWidth: 900, minHeight: 650)
         .sheet(isPresented: $showsCleanup) { WorktreeCleanupView(model: workspace.cleanup) }
+        .sheet(isPresented: $showsStaleDrafts, onDismiss: {
+            if opensCleanupAfterDrafts { opensCleanupAfterDrafts = false; openCleanup() }
+        }) {
+            StaleDraftCleanupView(model: staleDraftCleanup, accountLogin: account,
+                workload: appModel.state.authoredPullRequests,
+                onClosed: {
+                    appModel.send(.manualRefresh); review.refresh()
+                    await workspace.reload()
+                }, onManualCleanup: { opensCleanupAfterDrafts = true })
+        }
         .sheet(isPresented: $showsChatSettings) { ReviewChatSettingsView() }
         .sheet(isPresented: $showsPriorityAuthors) {
             VStack(alignment: .leading, spacing: 16) {
@@ -119,7 +140,9 @@ struct ReviewWorkspaceView: View {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }.help("Refresh GitHub and local workspace status")
             Menu {
-                Button("Clean up merged worktrees…") { showsCleanup = true; workspace.cleanup.scan() }
+                Button("Worktree cleanup…") { openCleanup() }
+                    .disabled(account == nil)
+                Button("Old drafts on GitHub (\(oldDraftCount))…") { showsStaleDrafts = true }
                     .disabled(account == nil)
                 Button("Priority authors…") {
                     priorityAuthorsText = workspace.priorityAuthors.joined(separator: ", ")
@@ -210,12 +233,22 @@ struct ReviewWorkspaceView: View {
                     TextField("Search title, repository, author or number", text: $review.search)
                         .textFieldStyle(.roundedBorder)
                 }
+                refreshNotice
+                HStack(alignment: .top) {
+                    Text(workspace.cleanup.automaticStatus ?? (workspace.cleanup.automaticEnabled ? "Automatic merged-worktree cleanup is enabled." : "Automatic worktree cleanup is off."))
+                        .workspaceFont(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Review cleanup…") { openCleanup() }.controlSize(.small)
+                    if oldDraftCount > 0 {
+                        Button("\(oldDraftCount) old drafts…") { showsStaleDrafts = true }.controlSize(.small)
+                    }
+                }
                 Text("\(review.queue.rawValue) · \(filtered.count) pull requests").workspaceFont(.headline)
                 let groups = WorkspaceDashboard.groups(visible: filtered, stacks: appModel.state.pullRequestStacks)
                 ForEach(groups.filter { $0.stack != nil }) { group in
                     DisclosureGroup(isExpanded: stackExpansion(group.id)) {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 270), alignment: .top)], alignment: .leading, spacing: 12) {
-                            ForEach(group.members) { member in prCard(member.pullRequest, contextOnly: member.isNavigationContext) }
+                            ForEach(group.members.filter { $0.pullRequest.state == .open }) { member in prCard(member.pullRequest, contextOnly: member.isNavigationContext) }
                         }.padding(.top, 10)
                     } label: {
                         HStack {
@@ -236,6 +269,22 @@ struct ReviewWorkspaceView: View {
                 Text("Urgency follows manual priority, requested reviewers and priority authors. Age and GitHub activity are shown separately; activity may include bots.")
                     .workspaceFont(.caption).foregroundStyle(.secondary)
             }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func openCleanup() {
+        workspace.cleanup.scan()
+        showsCleanup = true
+    }
+
+    @ViewBuilder private var refreshNotice: some View {
+        switch appModel.state.refreshHealth {
+        case .partial(let message), .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle")
+                .workspaceFont(.caption).foregroundStyle(.orange).textSelection(.enabled)
+        case .restoredSnapshot:
+            Text("Showing saved PR data while GitHub refreshes.").workspaceFont(.caption).foregroundStyle(.secondary)
+        default: EmptyView()
         }
     }
 

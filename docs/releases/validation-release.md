@@ -26,7 +26,12 @@ not part of GitHubBar's future trusted Developer ID/Sparkle update channel.
 - Use **Have an agent make all fixes…** to edit the default assess/fix/test/commit
   prompt and start a fresh Codex/Claude PR worktree session. Commits stay local.
 - Recognize GitHubBar by its new emerald branch app icon.
-- Preview merged-worktree cleanup with PR titles, descriptions, and session choices.
+- Remove finished PRs from Dashboard even when unrelated refresh metadata is partial.
+- See the full reviewer roster with confirmed approval ticks and requested/dismissed states.
+- Automatically clean verified merged managed worktrees after refresh when no session is live.
+  Review cleanup activity and retained reasons; other worktrees and live sessions need approval.
+- Flag old owned draft PRs after a configurable 30 days of GitHub inactivity and explicitly
+  close selected PRs on GitHub. Remote branches and local data remain intact.
 
 Agent sessions use local tmux and the configured terminal. Chat is advisory; publishing
 a review requires an explicit workspace action. The app no longer launches or polls
@@ -53,7 +58,7 @@ Run from a clean checkout:
 
 ```sh
 scripts/check.sh
-GITHUBBAR_VERSION=0.9.2 scripts/package-validation.sh
+GITHUBBAR_VERSION=0.10.0 scripts/package-validation.sh
 lipo -archs .build/validation/GitHubBar.app/Contents/MacOS/GitHubBar
 codesign --verify --deep --strict --verbose=2 .build/validation/GitHubBar.app
 plutil -extract CFBundleIdentifier raw .build/validation/GitHubBar.app/Contents/Info.plist

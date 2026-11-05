@@ -7,11 +7,11 @@ import XCTest
 @MainActor
 final class WorktreeCleanupRenderingTests: XCTestCase {
     func testBulkAndIndividualCleanupRenderInLightAndDarkMode() async throws {
-        let model = WorktreeCleanupModel(service: CleanupUIService())
+        let model = WorktreeCleanupModel(service: CleanupRenderingService())
         model.updateAccount("tester")
         model.scan()
         await model.pendingTask?.value
-        XCTAssertEqual(model.candidates.count, 3)
+        XCTAssertEqual(model.candidates.count, 4)
         let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent(".build/ui-previews")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -39,5 +39,20 @@ final class WorktreeCleanupRenderingTests: XCTestCase {
                 }
             }
         }
+    }
+}
+
+private struct CleanupRenderingService: WorktreeCleanupServicing {
+    func preview(accountLogin: String) async throws -> [WorktreeCleanupCandidate] {
+        let existing = try await CleanupUIService().preview(accountLogin: accountLogin)
+        let other = WorktreeCleanupCandidate(path: "/worktrees/experiment", sessions: [], title: "Experiment workspace",
+            headSHA: String(repeating: "b", count: 40), skipReason: nil, liveSessions: [:], accountLogin: accountLogin,
+            configuration: WorkspaceConfiguration(), provenance: .external, repositoryNameWithOwner: "example/project",
+            automaticSkipReason: "Other worktree: explicit manual approval required.")
+        return [other] + existing
+    }
+    func execute(_ approved: [WorktreeCleanupCandidate], accountLogin: String) async -> [WorktreeCleanupResult] {
+        XCTFail("Rendering must never remove worktrees")
+        return []
     }
 }
