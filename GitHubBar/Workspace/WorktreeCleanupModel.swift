@@ -13,6 +13,8 @@ final class WorktreeCleanupModel {
     }
     private(set) var isAutomaticRun = false
     private(set) var activity: [CleanupActivityRun] = []
+    var latestAutomaticActivity: CleanupActivityRun? { activity.first(where: \.automatic) }
+    var automaticRemovalActivity: [CleanupActivityRun] { activity.filter { $0.automatic && $0.removedCount > 0 } }
     private(set) var automaticStatus: String?
     private var manualReviewActive = false
     private var lastAutomaticRefresh: Date?
@@ -134,8 +136,8 @@ final class WorktreeCleanupModel {
                 selected = []
                 phase = .results
                 isAutomaticRun = false
-                if !recorded, !outcomes.isEmpty { record(outcomes, automatic: true, candidates: rows, account: accountLogin) }
-                automaticStatus = Task.isCancelled ? "Cleanup stopped; completed removals are listed below." : outcomes.isEmpty ? "No worktrees found for cleanup." : "Automatic cleanup: \(outcomes.filter { $0.outcome == .removed }.count) removed · \(outcomes.filter { $0.outcome != .removed }.count) need review"
+                if !recorded { record(outcomes, automatic: true, candidates: rows, account: accountLogin) }
+                automaticStatus = Task.isCancelled ? "Cleanup stopped; completed removals are listed below." : outcomes.isEmpty ? "No worktrees found for cleanup." : "Automatic cleanup: \(outcomes.filter(\.worktreeWasRemoved).count) removed · \(outcomes.filter { $0.outcome != .removed }.count) need review"
                 if !Task.isCancelled { resumeDeferredRefresh() }
             } catch {
                 guard let self, version == revision, !Task.isCancelled else { return }
@@ -221,15 +223,23 @@ final class WorktreeCleanupModel {
     private func record(_ outcomes: [WorktreeCleanupResult], automatic: Bool, candidates: [WorktreeCleanupCandidate], account: String) {
         let account = account.lowercased()
         let key = "githubbar.cleanup.activity." + account
-        let entries = outcomes.prefix(200).map { result in
+        // Keep confirmed removals ahead of retained rows when detail storage is bounded.
+        let ordered = outcomes.filter(\.worktreeWasRemoved) + outcomes.filter { !$0.worktreeWasRemoved }
+        let entries = ordered.prefix(200).map { result in
             CleanupActivityRun.Entry(path: result.path,
                 title: candidates.first { $0.path == result.path }?.title ?? result.path,
-                outcome: result.outcome.rawValue, message: result.message)
+                outcome: result.outcome.rawValue, message: result.message, worktreeWasRemoved: result.worktreeWasRemoved)
         }
         var history = accountLogin == account ? activity : defaults?.data(forKey: key)
             .flatMap { try? JSONDecoder().decode([CleanupActivityRun].self, from: $0) } ?? []
+        // Frequent checks that remove nothing must not quickly evict named removals.
+        if automatic, !outcomes.contains(where: \.worktreeWasRemoved),
+           let previous = history.first, previous.automatic, previous.removedCount == 0 {
+            history.removeFirst()
+        }
         history.insert(CleanupActivityRun(id: UUID(), completedAt: .now, automatic: automatic, entries: entries,
-            totalCount: outcomes.count, removedCount: outcomes.filter { $0.outcome == .removed }.count), at: 0)
+            totalCount: outcomes.count, removedCount: outcomes.filter(\.worktreeWasRemoved).count,
+            needsReviewCount: outcomes.filter { $0.outcome != .removed }.count), at: 0)
         history = Array(history.prefix(20))
         if let data = try? JSONEncoder().encode(history) { defaults?.set(data, forKey: key) }
         if accountLogin == account { activity = history }

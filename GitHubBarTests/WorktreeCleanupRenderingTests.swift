@@ -6,6 +6,53 @@ import XCTest
 
 @MainActor
 final class WorktreeCleanupRenderingTests: XCTestCase {
+    func testAutomaticRemovalActivityRendersAfterRestartAndEmptyCheck() throws {
+        let suite = "cleanup-activity-render-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let removed = CleanupActivityRun(id: UUID(), completedAt: Date(timeIntervalSince1970: 1_793_875_200),
+            automatic: true, entries: [
+                .init(path: "/Users/tester/worktrees/controllers/pr-184-codex", title: "Handle missing sensor inputs without losing the previous valid control state",
+                    outcome: "removed", message: "Removed; branch and notes retained."),
+                .init(path: "/Users/tester/worktrees/controllers/pr-201-claude", title: "Add validation for sensor configuration",
+                    outcome: "removed", message: "Removed; branch and notes retained."),
+                .init(path: "/Users/tester/worktrees/controllers/pr-202-codex", title: "Keep live worktree",
+                    outcome: "skipped", message: "Live session requires manual approval.")], totalCount: 3, removedCount: 2)
+        let empty = CleanupActivityRun(id: UUID(), completedAt: removed.completedAt.addingTimeInterval(600), automatic: true,
+            entries: [], totalCount: 0, removedCount: 0)
+        try defaults.set(JSONEncoder().encode([empty, removed]), forKey: "githubbar.cleanup.activity.tester")
+        let model = WorktreeCleanupModel(service: CleanupRenderingService(), defaults: defaults)
+        model.updateAccount("tester")
+        XCTAssertEqual(model.automaticRemovalActivity.flatMap(\.removedEntries).map(\.path), [
+            "/Users/tester/worktrees/controllers/pr-184-codex", "/Users/tester/worktrees/controllers/pr-201-claude"])
+        let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent(".build/ui-previews")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for (name, width, scale, appearance) in [
+            ("light", 850.0, 1.0, NSAppearance.Name.aqua),
+            ("dark", 850.0, 1.0, .darkAqua),
+            ("narrow-large-text", 480.0, 2.0, .aqua)
+        ] {
+            let view = NSHostingView(rootView: AutomaticCleanupActivityView(model: model).padding(16)
+                .workspaceTextSizing(scale)
+                .environment(\.colorScheme, appearance == .aqua ? .light : .dark)
+                .background(Color(nsColor: .windowBackgroundColor)))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 410),
+                styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: appearance)
+            window.contentView = view
+            view.frame = NSRect(x: 0, y: 0, width: width, height: 410)
+            view.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                .write(to: directory.appendingPathComponent("cleanup-activity-\(name).png"))
+            window.contentView = nil
+            window.close()
+        }
+    }
+
     func testBulkAndIndividualCleanupRenderInLightAndDarkMode() async throws {
         let model = WorktreeCleanupModel(service: CleanupRenderingService())
         model.updateAccount("tester")

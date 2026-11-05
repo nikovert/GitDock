@@ -234,15 +234,15 @@ struct ReviewWorkspaceView: View {
                         .textFieldStyle(.roundedBorder)
                 }
                 refreshNotice
-                HStack(alignment: .top) {
-                    Text(workspace.cleanup.automaticStatus ?? (workspace.cleanup.automaticEnabled ? "Automatic merged-worktree cleanup is enabled." : "Automatic worktree cleanup is off."))
-                        .workspaceFont(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Review cleanup…") { openCleanup() }.controlSize(.small)
-                    if oldDraftCount > 0 {
-                        Button("\(oldDraftCount) old drafts…") { showsStaleDrafts = true }.controlSize(.small)
+                VStack(alignment: .leading, spacing: 10) {
+                    AutomaticCleanupActivityView(model: workspace.cleanup)
+                    HStack {
+                        Button("Review cleanup…") { openCleanup() }.controlSize(.small)
+                        if oldDraftCount > 0 {
+                            Button("\(oldDraftCount) old drafts…") { showsStaleDrafts = true }.controlSize(.small)
+                        }
                     }
-                }
+                }.padding(12).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
                 Text("\(review.queue.rawValue) · \(filtered.count) pull requests").workspaceFont(.headline)
                 let groups = WorkspaceDashboard.groups(visible: filtered, stacks: appModel.state.pullRequestStacks)
                 ForEach(groups.filter { $0.stack != nil }) { group in

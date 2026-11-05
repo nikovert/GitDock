@@ -83,9 +83,12 @@ public struct WorktreeCleanupResult: Identifiable, Equatable, Sendable {
     public let path: String
     public let outcome: Outcome
     public let message: String
+    /// Filesystem deletion can succeed even if saving session-link changes fails afterward.
+    public let worktreeWasRemoved: Bool
 
-    public init(path: String, outcome: Outcome, message: String) {
+    public init(path: String, outcome: Outcome, message: String, worktreeWasRemoved: Bool? = nil) {
         self.path = path; self.outcome = outcome; self.message = message
+        self.worktreeWasRemoved = worktreeWasRemoved ?? (outcome == .removed)
     }
 }
 
@@ -319,7 +322,8 @@ public actor WorktreeCleanupCoordinator: WorktreeCleanupServicing {
                 message: "Removed worktree and session links. Local branch and board history retained.")
         } catch {
             return WorktreeCleanupResult(path: candidate.path, outcome: started ? .failed : .skipped,
-                message: removed ? "Worktree removed; session links were retained: " + error.localizedDescription : error.localizedDescription)
+                message: removed ? "Worktree removed; session links were retained: " + error.localizedDescription : error.localizedDescription,
+                worktreeWasRemoved: removed)
         }
     }
 

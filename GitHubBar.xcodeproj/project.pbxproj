@@ -46,6 +46,7 @@
 		65679A108BD941742103A172 /* MacLaunchAtLoginController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413C65D56097A21D67B2DFEC /* MacLaunchAtLoginController.swift */; };
 		6C570A0F606EA7D7AE56A2A2 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39E485BC4A03542878D61F2 /* UpdateController.swift */; };
 		6EA175A85028A276777F68E4 /* AgentMarkdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E95B35C12F289F4D23BAED8 /* AgentMarkdownTests.swift */; };
+		6EC7A902659F14D49315C1F7 /* AutomaticCleanupActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A447F3E749BD13D14A56B8 /* AutomaticCleanupActivityView.swift */; };
 		73FC70DDCDF512E44B786E5B /* WorkspaceDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C9F267C10B03ACBBD93F609 /* WorkspaceDashboard.swift */; };
 		752E7DDFACF4A96ADA269FFC /* SecondaryClickCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44912EF6590A1A171739D2DF /* SecondaryClickCapture.swift */; };
 		7B82FB6A582BE8AABEA58FB1 /* StaleDraftCleanupRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4B781BAFBAF2B8523F2C7F /* StaleDraftCleanupRenderingTests.swift */; };
@@ -173,6 +174,7 @@
 		599E1CA2EE38488262F59055 /* PRSearchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSearchModel.swift; sourceTree = "<group>"; };
 		5CE41C26ABE21A457E830821 /* ApplicationMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMenuController.swift; sourceTree = "<group>"; };
 		630C5AEE85A4FD354FCE9420 /* PRSearchScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRSearchScope.swift; sourceTree = "<group>"; };
+		63A447F3E749BD13D14A56B8 /* AutomaticCleanupActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomaticCleanupActivityView.swift; sourceTree = "<group>"; };
 		671581934811F4CD6E829E4E /* PRNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRNavigationTests.swift; sourceTree = "<group>"; };
 		685E6864EC15CF08046AF835 /* AccountConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountConnectionView.swift; sourceTree = "<group>"; };
 		6FCA7F94A99E37FDFC8C9470 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -407,6 +409,7 @@
 		56E7DED8309A7A1CF1F50C05 /* Workspace */ = {
 			isa = PBXGroup;
 			children = (
+				63A447F3E749BD13D14A56B8 /* AutomaticCleanupActivityView.swift */,
 				40B4448CD29081716495842F /* CleanupActivity.swift */,
 				0469668AD1397C59C3238299 /* ReviewAgentActionsView.swift */,
 				34D4FC78ED4ACD4E7EF3028B /* ReviewAgentContext.swift */,
@@ -663,6 +666,7 @@
 				F751EBF210E1E91BB7E0B863 /* AppModel.swift in Sources */,
 				7F3C916A59C7CBD9D337C4B8 /* AppearanceController.swift in Sources */,
 				4E861E74CE10041FA7DDD5C3 /* ApplicationMenuController.swift in Sources */,
+				6EC7A902659F14D49315C1F7 /* AutomaticCleanupActivityView.swift in Sources */,
 				B172F00F0C2EC95745C3DF43 /* AvatarImageCache.swift in Sources */,
 				417809096797CC0A53DF082C /* CleanupActivity.swift in Sources */,
 				2042492B344CC42231B0DCB4 /* CorePRSearchService.swift in Sources */,

@@ -293,6 +293,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let result = await f.coordinator.execute(preview, accountLogin: "tester", intent: .manual)
         XCTAssertEqual(result.map(\.outcome), [.failed])
         XCTAssertTrue(result.first?.message.contains("Worktree removed") == true)
+        XCTAssertEqual(result.first?.worktreeWasRemoved, true, "A later link failure must not hide confirmed filesystem removal")
         let document = try await f.store.load()
         XCTAssertEqual(document.sessions.count, 1)
         XCTAssertEqual(document.sessions.first?.worktreePath, f.checkout)

@@ -183,7 +183,7 @@ integrations; terminal automation may prompt for macOS permission on first use.
 To create a universal validation ZIP locally without installing the app:
 
 ```bash
-GITHUBBAR_VERSION=0.10.0 scripts/package-validation.sh
+GITHUBBAR_VERSION=0.10.1 scripts/package-validation.sh
 ```
 
 The ZIP and checksum are written to `dist/`. The app bundles

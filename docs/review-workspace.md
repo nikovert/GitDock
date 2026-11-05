@@ -191,9 +191,17 @@ Git filters cannot hide local changes. Unsupported or oversized content is retai
 with an explanation (200,000 entries, 512 MiB per file and 2 GiB total verification limits).
 
 Open **Review cleanup…** on Dashboard or **… → Worktree cleanup…** to inspect results
-and change the automatic-cleanup switch. **Recent cleanup activity** keeps the last
-20 runs per account (up to 200 detailed entries per run; larger runs show a notice).
+and change the automatic-cleanup switch. Dashboard shows **Recently auto-removed**
+with each recorded worktree's name, PR title, path and removal time. The last completed
+automatic check has its own timestamp and explicitly says when nothing was removed;
+earlier removals remain visible after a later empty check or app restart.
+**Recent cleanup activity** keeps up to 20 runs per account
+(200 detailed entries per run, prioritizing confirmed removals; larger runs show a notice).
+Consecutive automatic checks with no removals replace their previous check, so routine
+refreshes do not crowd out removal history. Manual removals are labelled separately.
 Completed removals remain recorded even if cleanup is stopped or the account changes.
+If removal succeeds but saving session links fails, the worktree is listed as removed
+with a follow-up warning and still counts as needing review.
 
 GitHubBar also lists other Git-registered worktrees belonging to configured repository
 checkouts, including paths outside the managed root. These require manual approval.

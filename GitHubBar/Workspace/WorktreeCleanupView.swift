@@ -14,21 +14,24 @@ struct WorktreeCleanupView: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let status = model.automaticStatus { Text(status).workspaceFont(.caption).foregroundStyle(.secondary) }
             if !model.activity.isEmpty {
-                DisclosureGroup("Recent cleanup activity") {
+                DisclosureGroup("Recent cleanup activity (\(model.activity.count))") {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 10) {
                             ForEach(model.activity) { run in
                                 Text("\(run.automatic ? "Automatic" : "Manual") · \(run.summary)").workspaceFont(.headline)
-                                Text(run.completedAt, style: .relative).workspaceFont(.caption).foregroundStyle(.secondary)
+                                Text(run.completedAt.formatted(date: .abbreviated, time: .shortened)).workspaceFont(.caption).foregroundStyle(.secondary)
+                                if run.totalCount == 0 {
+                                    Text("No worktrees found; nothing was removed.").workspaceFont(.caption).foregroundStyle(.secondary)
+                                }
                                 ForEach(run.entries) { entry in
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text("\(entry.outcome.capitalized): \(entry.title)").workspaceFont(.caption.bold())
+                                        Text("\(entry.outcomeLabel): \(entry.title)").workspaceFont(.caption.bold())
                                         Text(entry.path).workspaceFont(.caption.monospaced()).textSelection(.enabled)
                                         Text(entry.message).workspaceFont(.caption).foregroundStyle(.secondary)
                                     }
                                 }
                                 if run.entries.count < run.totalCount {
-                                    Text("Showing the first \(run.entries.count) entries. Scan again for the full current worktree list.")
+                                    Text("Showing \(run.entries.count) of \(run.totalCount) recorded results, with removals first. Omitted historical details are unavailable.")
                                         .workspaceFont(.caption).foregroundStyle(.secondary)
                                 }
                                 Divider()
@@ -68,7 +71,8 @@ struct WorktreeCleanupView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(model.results) { result in
                             VStack(alignment: .leading, spacing: 4) {
-                                Label(result.outcome.rawValue.capitalized, systemImage: result.outcome == .removed ? "checkmark.circle" : "exclamationmark.circle")
+                                Label(result.worktreeWasRemoved && result.outcome != .removed ? "Removed · follow-up needed" : result.outcome.rawValue.capitalized,
+                                    systemImage: result.outcome == .removed ? "checkmark.circle" : "exclamationmark.circle")
                                     .workspaceFont(.headline)
                                 if let candidate = model.candidates.first(where: { $0.path == result.path }) {
                                     pullRequestDetails(candidate)

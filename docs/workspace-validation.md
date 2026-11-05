@@ -1,5 +1,37 @@
 # Workspace improvements: local validation
 
+## Visible automatic cleanup (0.10.1)
+
+Dashboard now names recent automatic removals with PR titles, paths and completion
+times. It separately timestamps the latest completed check, including empty checks.
+Account-scoped history survives app restart; consecutive automatic checks without
+removals replace their previous check so routine refreshes retain earlier removals.
+Detailed history prioritizes removed worktrees before the 200-entry limit. Confirmed
+filesystem deletion remains visible with a follow-up warning if saving session links
+fails afterward; the independent review count still includes that failure.
+
+- Core: **276 tests passed**, including a real Git removal followed by a session-link
+  ownership change, verifying the receipt preserves actual filesystem deletion.
+- App harness: **131 tests executed, one skipped, zero failures**, with the same
+  native-focus skip and eight PRNavigationTests exclusions documented below.
+  Regression coverage includes persistent no-op checks, account isolation, manual
+  versus automatic outcomes, failed writes, partial success, and large-run truncation.
+- Python adapter fixtures: **34 tests passed**; no provider requests were made.
+- Repository checks passed, including strict app typechecking and Xcode project
+  regeneration. Used an ignored copy of `scripts/check.sh` with SwiftPM's native
+  engine and sandbox disabled after the default SDK-cache helper stalled; Swift
+  macro typechecking ran outside the workspace sandbox. Production scripts are unchanged.
+- Inspected the cleanup card and composite Dashboard in light/dark appearances,
+  900–1800px window widths and 200% text at minimum width. Prior history fixtures
+  without the new optional fields still decode.
+
+After installing, refresh with a disposable eligible merged worktree. Check that its
+name, PR title, path and removal time appear under **Recently auto-removed**. Refresh
+again and restart: the earlier removal should remain while the last completed check
+reports no new confirmed removals. Open **Review cleanup… → Recent cleanup activity**
+for retained reasons and manual outcomes. No user worktrees or live sessions were
+removed during validation.
+
 ## PR lifecycle, reviewers, and cleanup (0.10.0)
 
 Design decisions were approved through the fourteen questions captured in

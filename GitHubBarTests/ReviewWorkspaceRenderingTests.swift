@@ -56,6 +56,10 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
         let suite = "workspace-render-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let cleanup = CleanupActivityRun(id: UUID(), completedAt: .now.addingTimeInterval(-1800), automatic: true,
+            entries: [.init(path: "/Users/tester/worktrees/controllers/pr-183-codex", title: "Introduce controller state storage",
+                outcome: "removed", message: "Removed; branch and notes retained.")], totalCount: 1, removedCount: 1)
+        try defaults.set(JSONEncoder().encode([cleanup]), forKey: "githubbar.cleanup.activity.tester")
         let store = LocalWorkspaceStore(directoryURL: directory)
         let workspace = WorkspaceModel(store: store, sessions: AgentSessionManager(store: store, tmuxURL: nil),
             reviewStore: AgentReviewStore(directoryURL: directory), defaults: defaults)
@@ -99,6 +103,8 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
         for (name, width, mode, tab, appearance) in [
             ("manage-light", 1380.0, ReviewWorkspaceMode.manage, ReviewWorkspaceTab.changes, NSAppearance.Name.aqua),
             ("manage-dark", 1380.0, .manage, .changes, .darkAqua),
+            ("manage-large", 1800.0, .manage, .changes, .darkAqua),
+            ("manage-zoomed-minimum", 900.0, .manage, .changes, .aqua),
             ("review-light", 1380.0, .review, .changes, .aqua),
             ("review-dark", 1380.0, .review, .changes, .darkAqua),
             ("review-minimum", 900.0, .review, .changes, .aqua),
@@ -139,6 +145,7 @@ final class ReviewWorkspaceRenderingTests: XCTestCase {
             model.splitDiff = name == "review-dark" || name == "review-zoomed-dark"
             model.question = "Explain how the fallback recovers when valid input returns."
             if name.hasPrefix("review-zoomed") { for _ in 0..<(name == "review-zoomed-minimum" ? 10 : 6) { textSize.increase() } }
+            if name == "manage-zoomed-minimum" { for _ in 0..<10 { textSize.increase() } }
             if name == "chat-zoomed-minimum" { for _ in 0..<10 { textSize.increaseChat() } }
             try await Task.sleep(for: .milliseconds(50))
             host.layoutSubtreeIfNeeded()

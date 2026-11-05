@@ -4,6 +4,77 @@ import XCTest
 
 @MainActor
 final class AutomaticWorktreeCleanupTests: XCTestCase {
+    func testEmptyAutomaticChecksPersistWithoutHidingPreviousRemovals() async throws {
+        let suite = "CleanupVisibility.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let service = AutomaticCleanupFixture()
+        let model = WorktreeCleanupModel(service: service, defaults: defaults)
+        model.updateAccount("tester")
+        model.updateConfiguration(WorkspaceConfiguration())
+        model.automaticRefreshCompleted(at: Date(timeIntervalSince1970: 100))
+        await model.pendingTask?.value
+        await service.setEmpty()
+        for refresh in 101...125 {
+            model.automaticRefreshCompleted(at: Date(timeIntervalSince1970: Double(refresh)))
+            await model.pendingTask?.value
+        }
+        XCTAssertEqual(model.activity.first?.totalCount, 0, "The latest check must explicitly record that nothing was removed")
+        XCTAssertEqual(model.activity.count, 2, "Repeated empty checks must not evict evidence of removals")
+        let restored = WorktreeCleanupModel(service: service, defaults: defaults)
+        restored.updateAccount("tester")
+        XCTAssertEqual(restored.latestAutomaticActivity?.removedCount, 0)
+        XCTAssertEqual(restored.automaticRemovalActivity.flatMap(\.removedEntries).map(\.path), ["/worktrees/clean"])
+        restored.updateAccount("other")
+        XCTAssertNil(restored.latestAutomaticActivity)
+        XCTAssertTrue(restored.automaticRemovalActivity.isEmpty)
+    }
+
+    func testManualRemovalsAreNotPresentedAsAutomatic() async {
+        let model = WorktreeCleanupModel(service: CleanupUIService())
+        model.updateAccount("tester")
+        model.scan()
+        await model.pendingTask?.value
+        model.confirmAll()
+        await model.pendingTask?.value
+        XCTAssertEqual(model.activity.first?.removedCount, 2)
+        XCTAssertNil(model.latestAutomaticActivity)
+        XCTAssertTrue(model.automaticRemovalActivity.isEmpty)
+    }
+
+    func testFailedAutomaticWritesNeverAppearAsConfirmedRemovals() async {
+        let model = WorktreeCleanupModel(service: AutomaticCleanupFixture(fail: true))
+        model.updateAccount("tester")
+        model.updateConfiguration(WorkspaceConfiguration())
+        model.automaticRefreshCompleted(at: Date(timeIntervalSince1970: 100))
+        await model.pendingTask?.value
+        XCTAssertEqual(model.latestAutomaticActivity?.removedCount, 0)
+        XCTAssertTrue(model.automaticRemovalActivity.isEmpty)
+        XCTAssertEqual(model.latestAutomaticActivity?.entries.first { $0.path == "/worktrees/clean" }?.outcome, "failed")
+    }
+
+    func testSuccessfulRemovalsRemainNamedWhenActivityDetailsAreTruncated() async {
+        let model = WorktreeCleanupModel(service: AutomaticCleanupFixture(blockedCount: 205))
+        model.updateAccount("tester")
+        model.updateConfiguration(WorkspaceConfiguration())
+        model.automaticRefreshCompleted(at: Date(timeIntervalSince1970: 100))
+        await model.pendingTask?.value
+        XCTAssertEqual(model.activity.first?.entries.count, 200)
+        XCTAssertEqual(model.activity.first?.removedCount, 1)
+        XCTAssertEqual(model.activity.first?.entries.filter { $0.outcome == "removed" }.map(\.path), ["/worktrees/clean"])
+    }
+
+    func testRemovedWorktreeWithLinkFailureIsVisibleAndStillNeedsReview() async {
+        let model = WorktreeCleanupModel(service: AutomaticCleanupFixture(fail: true, partiallyRemoved: true))
+        model.updateAccount("tester")
+        model.updateConfiguration(WorkspaceConfiguration())
+        model.automaticRefreshCompleted(at: Date(timeIntervalSince1970: 100))
+        await model.pendingTask?.value
+        XCTAssertEqual(model.latestAutomaticActivity?.removedCount, 1)
+        XCTAssertEqual(model.automaticRemovalActivity.flatMap(\.removedEntries).map(\.path), ["/worktrees/clean"])
+        XCTAssertEqual(model.latestAutomaticActivity?.summary, "1 removed · 3 need review")
+    }
+
     func testCancellationStillRecordsCompletedRemovalsUnderOriginalAccount() async throws {
         for switchAccount in [false, true] {
             let suite = "CleanupCancellation.\(UUID())"
@@ -120,20 +191,29 @@ private actor AutomaticCleanupFixture: WorktreeCleanupServicing {
     var previewEntered = false
     var executeEntered = false
     var suspendedExecution: Bool
-    init(suspended: Bool = false, suspendedExecution: Bool = false) {
+    var empty = false
+    let blockedCount: Int
+    let fail: Bool
+    let partiallyRemoved: Bool
+    init(suspended: Bool = false, suspendedExecution: Bool = false, blockedCount: Int = 1, fail: Bool = false, partiallyRemoved: Bool = false) {
         self.suspended = suspended; self.suspendedExecution = suspendedExecution
+        self.blockedCount = blockedCount
+        self.fail = fail
+        self.partiallyRemoved = partiallyRemoved
     }
+    func setEmpty() { empty = true }
     func release() { suspended = false }
     func releaseExecution() { suspendedExecution = false }
     func preview(accountLogin: String) async throws -> [WorktreeCleanupCandidate] {
         previewEntered = true
         while suspended { await Task.yield() }
+        if empty { return [] }
         let key = try PullRequestKey(url: URL(string: "https://github.com/example/project/pull/42")!)
-        return ["clean", "live", "dirty"].map { name in
+        return (["clean", "live"] + (0..<blockedCount).map { "dirty-\($0)" }).map { name in
             let link = AgentSessionLink(subject: .pullRequest(key), agent: .codex, worktreePath: "/worktrees/\(name)",
                 tmuxSessionName: name == "live" ? "live" : nil, managedWorktree: true, state: .stopped)
             return WorktreeCleanupCandidate(path: link.worktreePath, sessions: [link], title: name,
-                headSHA: String(repeating: "a", count: 40), skipReason: name == "dirty" ? "Local changes" : nil,
+                headSHA: String(repeating: "a", count: 40), skipReason: name.hasPrefix("dirty") ? "Local changes" : nil,
                 liveSessions: name == "live" ? ["live": .init(id: "$1", serverPID: 1, serverStartedAt: 1, sessionCreatedAt: 1)] : [:],
                 accountLogin: accountLogin, configuration: WorkspaceConfiguration())
         }
@@ -142,7 +222,8 @@ private actor AutomaticCleanupFixture: WorktreeCleanupServicing {
         executions.append(approved.map(\.path))
         executeEntered = true
         while suspendedExecution { await Task.yield() }
-        return approved.map { .init(path: $0.path, outcome: .removed, message: "Removed") }
+        return approved.map { .init(path: $0.path, outcome: fail ? .failed : .removed,
+            message: fail ? "Removal failed; inspect worktree" : "Removed", worktreeWasRemoved: partiallyRemoved || !fail) }
     }
     func execute(_ approved: [WorktreeCleanupCandidate], accountLogin: String, intent: WorktreeCleanupIntent) async -> [WorktreeCleanupResult] {
         await execute(approved, accountLogin: accountLogin)
