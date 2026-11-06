@@ -233,8 +233,7 @@ public actor AgentSessionManager {
 
     public func refreshStates() async throws -> [AgentSessionLink] {
         guard !operationInProgress else { return try await store.load().sessions }
-        try beginOperation()
-        defer { operationInProgress = false }
+        // Polling observes tmux; it must not reserve the lifecycle lock across subprocesses.
         let document = try await store.load()
         guard let tmuxURL else { return document.sessions }
         var sessions = document.sessions
@@ -253,7 +252,9 @@ public actor AgentSessionManager {
         if refreshed != document.sessions {
             try await store.update { latest in
                 for session in refreshed {
-                    guard let index = latest.sessions.firstIndex(where: { $0.id == session.id }) else {
+                    guard let original = document.sessions.first(where: { $0.id == session.id }),
+                          let index = latest.sessions.firstIndex(where: { $0.id == session.id }),
+                          latest.sessions[index] == original else {
                         continue
                     }
                     latest.sessions[index].state = session.state
@@ -261,7 +262,7 @@ public actor AgentSessionManager {
                 }
             }
         }
-        return refreshed
+        return try await store.load().sessions
     }
 
     public func unlink(id: UUID) async throws {

@@ -124,35 +124,34 @@ public actor WorktreeCleanupCoordinator: WorktreeCleanupServicing {
     }
 
     public func preview(accountLogin: String) async throws -> [WorktreeCleanupCandidate] {
-        try await sessions.exclusively { [self] in
-            let document = try await store.load()
-            var candidates: [WorktreeCleanupCandidate] = []
-            let groups = Dictionary(grouping: document.sessions, by: { WorktreeCleanupLocal.canonical($0.worktreePath) })
-            var repositories: [String: String] = [:]
-            var discoveryFailures: [String: (String, String)] = [:]
-            for (repository, checkout) in document.configuration.repositoryCheckouts.sorted(by: { $0.key < $1.key }) {
-                do {
-                    for path in try await local.registeredPaths(checkout: checkout) {
-                        // Ambiguous registrations are retained and surfaced through validation.
-                        if repositories[path] == nil { repositories[path] = repository }
-                    }
-                } catch {
-                    try Task.checkCancellation()
-                    discoveryFailures[WorktreeCleanupLocal.canonical(checkout)] = (repository,
-                        "Could not enumerate registered worktrees: " + error.localizedDescription)
+        // Preview is advisory. Execution revalidates every candidate under the lifecycle lock.
+        let document = try await store.load()
+        var candidates: [WorktreeCleanupCandidate] = []
+        let groups = Dictionary(grouping: document.sessions, by: { WorktreeCleanupLocal.canonical($0.worktreePath) })
+        var repositories: [String: String] = [:]
+        var discoveryFailures: [String: (String, String)] = [:]
+        for (repository, checkout) in document.configuration.repositoryCheckouts.sorted(by: { $0.key < $1.key }) {
+            do {
+                for path in try await local.registeredPaths(checkout: checkout) {
+                    // Ambiguous registrations are retained and surfaced through validation.
+                    if repositories[path] == nil { repositories[path] = repository }
                 }
-            }
-            for path in Set(groups.keys).union(repositories.keys).sorted() {
+            } catch {
                 try Task.checkCancellation()
-                candidates.append(await inspect(path: path, document: document, accountLogin: accountLogin, repository: repositories[path]))
+                discoveryFailures[WorktreeCleanupLocal.canonical(checkout)] = (repository,
+                    "Could not enumerate registered worktrees: " + error.localizedDescription)
             }
-            for (path, failure) in discoveryFailures.sorted(by: { $0.key < $1.key }) where !candidates.contains(where: { $0.path == path }) {
-                candidates.append(WorktreeCleanupCandidate(path: path, sessions: [], title: failure.0, headSHA: "",
-                    skipReason: failure.1, liveSessions: [:], accountLogin: accountLogin, configuration: document.configuration,
-                    provenance: .external, repositoryNameWithOwner: failure.0, automaticSkipReason: failure.1))
-            }
-            return candidates
         }
+        for path in Set(groups.keys).union(repositories.keys).sorted() {
+            try Task.checkCancellation()
+            candidates.append(await inspect(path: path, document: document, accountLogin: accountLogin, repository: repositories[path]))
+        }
+        for (path, failure) in discoveryFailures.sorted(by: { $0.key < $1.key }) where !candidates.contains(where: { $0.path == path }) {
+            candidates.append(WorktreeCleanupCandidate(path: path, sessions: [], title: failure.0, headSHA: "",
+                skipReason: failure.1, liveSessions: [:], accountLogin: accountLogin, configuration: document.configuration,
+                provenance: .external, repositoryNameWithOwner: failure.0, automaticSkipReason: failure.1))
+        }
+        return candidates
     }
 
     public func execute(_ approved: [WorktreeCleanupCandidate], accountLogin: String) async -> [WorktreeCleanupResult] {

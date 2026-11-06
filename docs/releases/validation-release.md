@@ -11,6 +11,8 @@ not part of GitHubBar's future trusted Developer ID/Sparkle update channel.
 - Keep local priorities, status tags, and notes for PRs and stacks.
 - See PR titles, authors, requested reviewers, review status, and stack members on the board.
 - Pin or create Codex/Claude worktree sessions and jump to them from the menu.
+- Start sessions while background cleanup scans or status polls run. Delayed status
+  results preserve newer session changes; worktree removal remains guarded.
 - Manage PRs in a larger window with attention queues, pins, snoozes, and activity.
 - Review unified or split diffs, save inline drafts, and explicitly submit reviews.
 - Navigate changed files in a GitHub-style folder tree, filter by path, and see
@@ -60,7 +62,7 @@ Run from a clean checkout:
 
 ```sh
 scripts/check.sh
-GITHUBBAR_VERSION=0.10.1 scripts/package-validation.sh
+GITHUBBAR_VERSION=0.10.2 scripts/package-validation.sh
 lipo -archs .build/validation/GitHubBar.app/Contents/MacOS/GitHubBar
 codesign --verify --deep --strict --verbose=2 .build/validation/GitHubBar.app
 plutil -extract CFBundleIdentifier raw .build/validation/GitHubBar.app/Contents/Info.plist
