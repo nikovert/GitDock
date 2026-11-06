@@ -10,7 +10,7 @@ review queue in a persistent menu bar popover. Use the resizable workspace to pr
 read diffs, draft and submit reviews, ask an agent questions, and jump into the
 terminal session attached to your worktree.
 
-[**Download v0.10.1 for macOS**](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.1-1/GitHubBar-validation-0.10.1-aebd68fea0e5.zip) · [SHA-256](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.1-1/GitHubBar-validation-0.10.1-aebd68fea0e5.zip.sha256) · [Latest release](https://github.com/nikovert/GitHubBar/releases/latest) · [Build from source](#build-from-source)
+[**Download v0.10.2 for macOS**](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.2-1/GitHubBar-validation-0.10.2-1261b5fa8cf0.zip) · [SHA-256](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.2-1/GitHubBar-validation-0.10.2-1261b5fa8cf0.zip.sha256) · [Latest release](https://github.com/nikovert/GitHubBar/releases/latest) · [Build from source](#build-from-source)
 
 ![Native dark-mode review workspace with split diffs, file navigation, review controls, and the agent chat panel](docs/assets/workspace-review-dark.png)
 
@@ -170,16 +170,16 @@ GitHubBar requires **macOS 14 or newer** and supports **Apple Silicon and Intel*
    gh auth login
    ```
 
-2. Download the [v0.10.1 app ZIP](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.1-1/GitHubBar-validation-0.10.1-aebd68fea0e5.zip) and its
-   [SHA-256 checksum](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.1-1/GitHubBar-validation-0.10.1-aebd68fea0e5.zip.sha256).
+2. Download the [v0.10.2 app ZIP](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.2-1/GitHubBar-validation-0.10.2-1261b5fa8cf0.zip) and its
+   [SHA-256 checksum](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.2-1/GitHubBar-validation-0.10.2-1261b5fa8cf0.zip.sha256).
    This universal build supports both Apple Silicon and Intel Macs.
-   [Release notes](https://github.com/nikovert/GitHubBar/releases/tag/validation-v0.10.1-1) describe the included features.
+   [Release notes](https://github.com/nikovert/GitHubBar/releases/tag/validation-v0.10.2-1) describe the included features.
 
 3. Verify the downloaded ZIP, then unzip and move `GitHubBar.app` to **Applications**:
 
    ```sh
    cd ~/Downloads
-   shasum -a 256 --check GitHubBar-validation-0.10.1-aebd68fea0e5.zip.sha256
+   shasum -a 256 --check GitHubBar-validation-0.10.2-1261b5fa8cf0.zip.sha256
    ```
 
 Validation builds are ad-hoc signed and not Apple-notarized. If macOS blocks the
@@ -208,19 +208,19 @@ integrations; terminal automation may prompt for macOS permission on first use.
 To create a universal validation ZIP locally without installing the app:
 
 ```bash
-GITHUBBAR_VERSION=0.10.1 scripts/package-validation.sh
+GITHUBBAR_VERSION=0.10.2 scripts/package-validation.sh
 ```
 
 The ZIP and checksum are written to `dist/`. The app bundles
 `GitHubBarWorkspaceCLI`, the chat adapter, and its setup guide. See
 [packaging checks](docs/agent-reviews.md#build-and-verify) before overriding paths.
 
-The v0.10.1 validation ran **276 core tests**, **131 app tests** (one skipped), and
-**34 adapter tests**, with zero failures, alongside Swift 6 concurrency checks,
-universal packaging, and light/dark layout inspection at minimum and large window
-sizes. Eight existing PR navigation tests remain excluded because of a native event
-host limitation. See the [current validation report](docs/workspace-validation.md)
-for scope, limits, and manual checks. Run `scripts/check.sh` before contributing.
+The v0.10.2 workspace-lock fix passed **279 core tests**, including regressions
+for launching sessions during background polling and cleanup scans, and preserving
+newer session state when a delayed poll completes. Repository checks and strict
+app typechecking also passed. The download is a universal build with signature,
+archive, and SHA-256 checks. See the [validation report](docs/workspace-validation.md)
+for earlier app coverage and manual checks. Run `scripts/check.sh` before contributing.
 
 ## Local state and privacy
 
