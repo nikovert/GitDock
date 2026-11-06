@@ -10,7 +10,7 @@ than implying that unsearched code has no matches. See [PR search](../pr-search.
 
 Review workers are configured locally by display name, executable, literal
 arguments and working directory, or managed externally. No particular bot or
-personal priority-author list is built into GitHubBar. Set preferred authors in
+personal priority-author list is built into GitDock. Set preferred authors in
 Settings. Existing review policies and queued jobs remain compatible. See
 [agent reviews](../agent-reviews.md) for the generic worker protocol.
 
@@ -37,5 +37,5 @@ handshake. Managed Stop controls the direct foreground worker; its adapter must
 supervise and terminate its children. No third-party adapter was exercised here.
 
 For installation, verify the adjacent SHA-256 file, unzip the app, quit your
-current GitHubBar, and replace it in Applications. Keep the prior app available
+current GitDock, and replace it in Applications. Keep the prior app available
 if you want to roll back. This does not automatically install the build.

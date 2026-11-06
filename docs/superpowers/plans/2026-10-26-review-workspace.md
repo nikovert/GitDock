@@ -30,8 +30,8 @@ through a separate, bounded JSON command contract without shell interpolation.
 
 ### Task 1: GitHub review data and diff model
 
-Files: new `Packages/GitHubBarCore/Sources/GitHubBarCore/Review/` files and
-`Packages/GitHubBarCore/Tests/GitHubBarCoreTests/PRReviewTests.swift`; extend optional
+Files: new `Packages/GitDockCore/Sources/GitDockCore/Review/` files and
+`Packages/GitDockCore/Tests/GitDockCoreTests/PRReviewTests.swift`; extend optional
 createdAt in the existing presentation and its workload/search producers.
 
 Interfaces: `PRReviewServicing.load(key:accountLogin:sinceSHA:) async throws ->
@@ -44,7 +44,7 @@ line numbers, line kind, and source text. Inline comment uses path/line/side/bod
   paginated data, account mismatch, changing head, and review submission payload.
 - [x] Run focused core tests and observe failure before implementation.
 - [x] Implement bounded read/submit transport and parser; no automatic writes.
-- [x] Run `swift test --package-path Packages/GitHubBarCore --filter PRReview`.
+- [x] Run `swift test --package-path Packages/GitDockCore --filter PRReview`.
   Expected: all selected tests pass.
 
 ### Task 2: Agent chat command contract
@@ -61,12 +61,12 @@ Response includes matching prURL/headSHA, answer, and file/line citations.
   missing executable, malformed/wrong-revision responses, cancellation and limits.
 - [x] Run focused tests and observe failure before implementation.
 - [x] Implement no-shell JSON stdin/stdout transport with timeout/output cap.
-- [x] Run `swift test --package-path Packages/GitHubBarCore --filter ReviewChat`.
+- [x] Run `swift test --package-path Packages/GitDockCore --filter ReviewChat`.
   Expected: all selected tests pass; no real agents invoked.
 
 ### Task 3: Local review state and workspace shell
 
-Files: new `GitHubBar/Workspace/ReviewWorkspaceModel.swift`,
+Files: new `GitDock/Workspace/ReviewWorkspaceModel.swift`,
 `ReviewWorkspaceView.swift`, `ReviewDiffView.swift`, `ReviewChatPanel.swift`,
 local state helper, related app tests; modify WorkspaceWindowController and expose
 the existing WorkspaceDetailView for reuse. Parent owns these files.

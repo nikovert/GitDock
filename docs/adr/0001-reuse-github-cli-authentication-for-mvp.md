@@ -4,7 +4,7 @@ status: accepted
 
 # Reuse GitHub CLI authentication for the MVP
 
-GitHubBar's MVP will use an explicitly selected GitHub CLI session as the credential source for its single monitored account. This avoids operating an OAuth application or authentication backend while the product is being validated at real pull-request volume; GitHubBar will not use `gh pr checkout` or make GitHub CLI responsible for the product's pull-request model.
+GitDock's MVP will use an explicitly selected GitHub CLI session as the credential source for its single monitored account. This avoids operating an OAuth application or authentication backend while the product is being validated at real pull-request volume; GitDock will not use `gh pr checkout` or make GitHub CLI responsible for the product's pull-request model.
 
 ## Considered options
 
@@ -14,4 +14,4 @@ GitHubBar's MVP will use an explicitly selected GitHub CLI session as the creden
 
 ## Consequences
 
-The MVP requires GitHub CLI to be installed and authenticated. GitHubBar must make the selected CLI account and detected access coverage visible, diagnose missing scopes and organization SSO authorization, and treat the GitHub CLI as credential owner rather than persist another long-lived token. First-party OAuth onboarding remains a post-MVP feature.
+The MVP requires GitHub CLI to be installed and authenticated. GitDock must make the selected CLI account and detected access coverage visible, diagnose missing scopes and organization SSO authorization, and treat the GitHub CLI as credential owner rather than persist another long-lived token. First-party OAuth onboarding remains a post-MVP feature.

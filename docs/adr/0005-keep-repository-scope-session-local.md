@@ -4,7 +4,7 @@ status: accepted
 
 # Keep Repository scope session-local
 
-GitHubBar will persist Pinned repository membership on each Mac, but the active Repository scope will remain session-local and default to All whenever the app launches.
+GitDock will persist Pinned repository membership on each Mac, but the active Repository scope will remain session-local and default to All whenever the app launches.
 
 ## Considered options
 
@@ -16,5 +16,5 @@ GitHubBar will persist Pinned repository membership on each Mac, but the active 
 
 - Settings stores stable repository IDs and last-known names for Pinned repositories.
 - The All and Pinned tabs only re-project the retained Account workload and never trigger Reconciliation.
-- GitHubBar launches in All even when the previous session ended in Pinned.
+- GitDock launches in All even when the previous session ended in Pinned.
 - ADR-0004 remains authoritative for account-wide reconciliation and local filtering, but its persisted-scope statement is superseded by this decision.

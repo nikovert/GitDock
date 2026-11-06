@@ -1,4 +1,4 @@
-# GitHubBar MVP architecture
+# GitDock MVP architecture
 
 Status: implementation-ready
 
@@ -33,16 +33,16 @@ flowchart TD
 Use Swift 6 with strict concurrency and a macOS 14 deployment target.
 
 ```text
-GitHubBar.xcodeproj
-GitHubBar/
+GitDock.xcodeproj
+GitDock/
   App/
   StatusItem/
   Popover/
   Settings/
   Updates/
-Packages/GitHubBarCore/
+Packages/GitDockCore/
   Package.swift
-  Sources/GitHubBarCore/
+  Sources/GitDockCore/
     Domain/
     Workload/
     Account/
@@ -50,12 +50,12 @@ Packages/GitHubBarCore/
     Persistence/
     Preferences/
     Diagnostics/
-  Tests/GitHubBarCoreTests/
+  Tests/GitDockCoreTests/
 scripts/
 ```
 
-- `GitHubBar` is the only app target. It owns AppKit, SwiftUI, ServiceManagement, and Sparkle integration.
-- `GitHubBarCore` is one local Swift package library target organized into logical modules by folder. It imports Foundation and OSLog, but not AppKit, SwiftUI, or Sparkle.
+- `GitDock` is the only app target. It owns AppKit, SwiftUI, ServiceManagement, and Sparkle integration.
+- `GitDockCore` is one local Swift package library target organized into logical modules by folder. It imports Foundation and OSLog, but not AppKit, SwiftUI, or Sparkle.
 - Do not create one build target per logical module. Add a target only when a real compilation, platform, or dependency boundary appears.
 - Use a small construction root in the app delegate to create adapters and inject them. Do not add a dependency-injection framework.
 
@@ -87,7 +87,7 @@ The engine actor owns all mutable workload state, in-flight tasks, generation nu
 
 One inspection operation accepts the selected login and returns a typed account-connection result. The GitHub CLI adapter hides executable discovery, authenticated-account enumeration, temporary token retrieval, `viewer.login` verification, scope inspection, and Access coverage diagnostics.
 
-The production adapter invokes GitHub CLI through an injected command runner; tests use a fake runner. Tokens exist in process memory only and must never be written to GitHubBar storage or logs. GitHubBar never calls `gh auth switch`.
+The production adapter invokes GitHub CLI through an injected command runner; tests use a fake runner. Tokens exist in process memory only and must never be written to GitDock storage or logs. GitDock never calls `gh auth switch`.
 
 ### GitHubWorkloadClient
 
@@ -121,7 +121,7 @@ The app owns a small updater interface with two real adapters selected by build 
 - validation builds use a disabled updater and expose no Sparkle behavior;
 - signed stable builds use Sparkle and expose background checks plus Check for Updates.
 
-Sparkle is not visible to `GitHubBarCore`.
+Sparkle is not visible to `GitDockCore`.
 
 ## Native app shell
 

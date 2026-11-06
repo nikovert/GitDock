@@ -34,23 +34,23 @@ The repository screen provides:
 
 The table is fed from accessible repositories, falling back to menu-snapshot or currently loaded repositories. Its row builder deduplicates names case-insensitively, preserves pinned/hidden entries that are no longer in the loaded catalog as “manual” rows, sorts pinned first, and reports loaded/pinned/hidden totals. ([`RepoSettingsView.swift` lines 163–187](https://github.com/steipete/RepoBar/blob/5c754564b4097c759538f35ca34624fd45ca6edc/Sources/RepoBar/Settings/RepoSettingsView.swift#L163-L187), [`RepoBrowserRows.swift` lines 85–171](https://github.com/steipete/RepoBar/blob/5c754564b4097c759538f35ca34624fd45ca6edc/Sources/RepoBar/Settings/RepoBrowserRows.swift#L85-L171))
 
-## What GitHubBar should reuse
+## What GitDock should reuse
 
-1. **Separate configuration from navigation.** Persist a set of pinned repository IDs in settings, but model the menu tab (`All` or `Pinned`) separately. GitHubBar’s current `RepositoryScope` conflates these two concepts; RepoBar’s split between persistent `pinnedRepositories` and transient `menuRepoSelection` is the cleaner model.
-2. **Put only `All | Pinned` in the menu.** These tabs answer the immediate navigation question without expanding a giant repository submenu. Switch tabs by filtering GitHubBar’s already-loaded PR snapshot locally, so the interaction is instant and performs no refresh.
+1. **Separate configuration from navigation.** Persist a set of pinned repository IDs in settings, but model the menu tab (`All` or `Pinned`) separately. GitDock’s current `RepositoryScope` conflates these two concepts; RepoBar’s split between persistent `pinnedRepositories` and transient `menuRepoSelection` is the cleaner model.
+2. **Put only `All | Pinned` in the menu.** These tabs answer the immediate navigation question without expanding a giant repository submenu. Switch tabs by filtering GitDock’s already-loaded PR snapshot locally, so the interaction is instant and performs no refresh.
 3. **Configure pins in a dedicated Settings view.** Use a searchable table/list with repository name and a Pin checkbox or two-state control. Apply changes immediately and store them locally on that Mac.
 4. **Keep unavailable pins visible in Settings.** Preserve their stable repository IDs/names with an unavailable state instead of silently deleting them. This makes permission changes diagnosable.
-5. **Keep pin order only if it has a defined effect.** RepoBar’s array order is meaningful because pinned repositories receive priority. If GitHubBar only uses pins as a membership filter, a normalized `Set<String>` is sufficient and simpler.
+5. **Keep pin order only if it has a defined effect.** RepoBar’s array order is meaningful because pinned repositories receive priority. If GitDock only uses pins as a membership filter, a normalized `Set<String>` is sufficient and simpler.
 
-## What is overkill for GitHubBar 1.0
+## What is overkill for GitDock 1.0
 
-- `Local` and `Work` tabs: they reflect RepoBar’s repository/local-git dashboard domain, not GitHubBar’s PR-attention workflow.
+- `Local` and `Work` tabs: they reflect RepoBar’s repository/local-git dashboard domain, not GitDock’s PR-attention workflow.
 - Hidden repositories and tri-state visibility: pin membership plus `All | Pinned` already expresses the requested machine-local scope.
-- Repository statistics, sortable table columns, manual rules, bulk visibility actions, and explicit Refresh Now: GitHubBar only needs a fast pin selector over its discovered repository catalog.
-- RepoBar’s forced refresh after every visibility mutation: GitHubBar already retains the full PR snapshot and can recompute visible sections and the menu-bar count locally.
-- Account-scoped pin maps until GitHubBar actually supports multiple accounts. Keep the stored shape migration-friendly, but do not build the multi-account machinery now.
+- Repository statistics, sortable table columns, manual rules, bulk visibility actions, and explicit Refresh Now: GitDock only needs a fast pin selector over its discovered repository catalog.
+- RepoBar’s forced refresh after every visibility mutation: GitDock already retains the full PR snapshot and can recompute visible sections and the menu-bar count locally.
+- Account-scoped pin maps until GitDock actually supports multiple accounts. Keep the stored shape migration-friendly, but do not build the multi-account machinery now.
 
-## Recommended GitHubBar shape
+## Recommended GitDock shape
 
 - **Persistent:** `pinnedRepositoryIDs: Set<String>` (plus last-known `nameWithOwner` for unavailable-row display).
 - **Menu-only selection:** `RepositoryListFilter.all | .pinned`; default to `.all` on launch, matching RepoBar, unless product requirements explicitly say the active tab itself should persist.

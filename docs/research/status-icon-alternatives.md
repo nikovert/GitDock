@@ -1,6 +1,6 @@
 # Status icon alternatives
 
-Research scope: official GitHub Primer/Octicons assets, GitHub brand guidance, and Apple platform guidance for GitHubBar's 18×18 menu-bar status item. The design constraint is an open lower-right carve containing a one- or two-digit review count.
+Research scope: official GitHub Primer/Octicons assets, GitHub brand guidance, and Apple platform guidance for GitDock's 18×18 menu-bar status item. The design constraint is an open lower-right carve containing a one- or two-digit review count.
 
 ## Platform and source constraints
 
@@ -19,12 +19,12 @@ Research scope: official GitHub Primer/Octicons assets, GitHub brand guidance, a
 | [`checklist`](https://github.com/primer/octicons/blob/main/icons/checklist-16.svg) | Actionable review queue / tasks to complete | **Poor.** The checkmark is in the lower-right quadrant. The carve removes the part that distinguishes this from a generic document. | Reject for this count construction. |
 | [`mark-github`](https://github.com/primer/octicons/blob/main/icons/mark-github-16.svg) | Immediate recognition of GitHub as the connected service | **Technically poor and legally unsuitable.** A lower-right carve materially alters the solid circular Invertocat silhouette. More importantly, GitHub says third parties must not use a GitHub logo as their offering/project icon and must not modify the logo. | Do not prototype as the app/status icon. |
 
-The GitHub mark can only be considered as an unmodified secondary integration indicator, not as GitHubBar's carved status icon. GitHub permits secondary use to indicate an integration, but disallows using the mark as the offering's logo or altering it. [GitHub Brand Toolkit: Logo](https://brand.github.com/foundations/logo) · [GitHub Logo Policy](https://docs.github.com/en/site-policy/other-site-policies/github-logo-policy)
+The GitHub mark can only be considered as an unmodified secondary integration indicator, not as GitDock's carved status icon. GitHub permits secondary use to indicate an integration, but disallows using the mark as the offering's logo or altering it. [GitHub Brand Toolkit: Logo](https://brand.github.com/foundations/logo) · [GitHub Logo Policy](https://docs.github.com/en/site-policy/other-site-policies/github-logo-policy)
 
 ## Recommended prototype set
 
 1. **`code-review`** — strongest match to “items awaiting my review,” with a carve that preserves its semantic core.
 2. **`repo`** — clearest simple GitHub-domain object after excluding the protected GitHub mark.
-3. **`stack`** — most distinctive expression of GitHubBar's high-throughput aggregation value.
+3. **`stack`** — most distinctive expression of GitDock's high-throughput aggregation value.
 
 Render all three from the official 16 px paths, centered without geometric scaling in the same 18×18 template canvas, using the identical carve and sample counts `2`, `20`, and `99`. Evaluate them at actual 1× menu-bar size; enlarged previews alone will conceal stroke and counter failures.

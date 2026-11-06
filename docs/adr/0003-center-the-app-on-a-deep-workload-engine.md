@@ -4,7 +4,7 @@ status: accepted
 
 # Center the app on a deep WorkloadEngine
 
-GitHubBar will put connection resolution, cached-first reconciliation, scheduling, publication guards, Repository scope, and Snapshot persistence behind one actor-owned `WorkloadEngine` interface. A small main-actor presentation adapter will expose immutable state to the AppKit status-item shell and SwiftUI views; GitHub, GitHub CLI, persistence, clock, and updater behavior vary through narrow seams with real and fake adapters.
+GitDock will put connection resolution, cached-first reconciliation, scheduling, publication guards, Repository scope, and Snapshot persistence behind one actor-owned `WorkloadEngine` interface. A small main-actor presentation adapter will expose immutable state to the AppKit status-item shell and SwiftUI views; GitHub, GitHub CLI, persistence, clock, and updater behavior vary through narrow seams with real and fake adapters.
 
 ## Considered options
 
@@ -14,7 +14,7 @@ GitHubBar will put connection resolution, cached-first reconciliation, schedulin
 
 ## Consequences
 
-- The repository has one macOS app target and one local `GitHubBarCore` Swift package target.
-- `GitHubBarCore` contains no AppKit, SwiftUI, or Sparkle imports.
+- The repository has one macOS app target and one local `GitDockCore` Swift package target.
+- `GitDockCore` contains no AppKit, SwiftUI, or Sparkle imports.
 - The UI observes presentation state and sends commands; it does not coordinate GitHub, GitHub CLI, timers, or persistence.
 - Apple frameworks are used throughout, with Sparkle as the only third-party runtime dependency.

@@ -5,24 +5,24 @@
 > CLI protocol and existing external clients. Local Codex/Claude chat and explicit
 > GitHub review posting are described in [Review workspace](review-workspace.md).
 
-GitHubBar exchanges local review requests and results with any compatible review worker
-through `GitHubBarWorkspaceCLI agent`. The CLI is bundled in
-`GitHubBar.app/Contents/MacOS` in validation, stable, and Xcode builds. Review workers
-are installed separately. Colleagues can build GitHubBar without a worker installed.
+GitDock exchanges local review requests and results with any compatible review worker
+through `GitDockWorkspaceCLI agent`. The CLI is bundled in
+`GitDock.app/Contents/MacOS` in validation, stable, and Xcode builds. Review workers
+are installed separately. Colleagues can build GitDock without a worker installed.
 
 A general-purpose coding CLI, including Claude or Codex, is **not automatically a
 review worker**. It needs an adapter implementing the
 [agent review protocol](agent-review-protocol.md), including queue claims, leases,
-policy checks, and result updates. GitHubBar does not supply such an adapter or infer
+policy checks, and result updates. GitDock does not supply such an adapter or infer
 compatibility from the executable's name.
 
 ## Configure in Settings
 
 Under **Review agent**, choose a display name and one of these modes:
 
-- **External worker**: run your compatible worker independently. GitHubBar does not
+- **External worker**: run your compatible worker independently. GitDock does not
   start, stop, or monitor that process. This is the default for existing installations.
-- **Start from GitHubBar**: enter an absolute executable path, arguments, and an existing
+- **Start from GitDock**: enter an absolute executable path, arguments, and an existing
   absolute working directory. The executable must be a compatible foreground worker.
 
 Arguments accept a JSON array of strings or one argument per line. For example:
@@ -78,7 +78,7 @@ with its own private logging configuration.
 **Stop** sends termination, waits up to one second, then sends a kill signal if needed
 and waits up to one more second. It controls the direct process only. Compatible
 workers must stay in the foreground, supervise their children, and stop them on
-termination; detached subprocesses cannot be managed by GitHubBar. The app stops its
+termination; detached subprocesses cannot be managed by GitDock. The app stops its
 worker at shutdown and when the monitored account changes or disconnects. Switching
 accounts does not migrate a queue: use separate workspace state for another account.
 External workers remain the responsibility of their external supervisor.
@@ -137,11 +137,11 @@ From the repository root, build and run core tests with full Xcode:
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test \
-  --package-path Packages/GitHubBarCore \
+  --package-path Packages/GitDockCore \
   --scratch-path /private/tmp/githubbar-review-build
 ```
 
-For an Xcode app build, run `scripts/generate-project.sh`, then build the `GitHubBar`
+For an Xcode app build, run `scripts/generate-project.sh`, then build the `GitDock`
 scheme. Its CLI target shares the Swift package sources and embeds the executable in
 `Contents/MacOS`. No worker dependency is needed to compile the app.
 
@@ -158,7 +158,7 @@ and writes a ZIP and checksum to `dist/`. Inspect the bridge with isolated state
 review_test_dir="$(mktemp -d /private/tmp/githubbar-review-check.XXXXXX)"
 printf '%s\n' '{"op":"show"}' \
   | GITHUBBAR_WORKSPACE_DIR="$review_test_dir" \
-    .build/validation/GitHubBar.app/Contents/MacOS/GitHubBarWorkspaceCLI agent
+    .build/validation/GitDock.app/Contents/MacOS/GitDockWorkspaceCLI agent
 ```
 
 The temporary directory is retained for inspection. Packaging tests do not require

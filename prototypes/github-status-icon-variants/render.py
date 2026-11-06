@@ -1,4 +1,4 @@
-"""PROTOTYPE: five official GitHub Octicons with GitHubBar's open-corner count carve."""
+"""PROTOTYPE: five official GitHub Octicons with GitDock's open-corner count carve."""
 
 from pathlib import Path
 
@@ -82,7 +82,7 @@ draw = ImageDraw.Draw(canvas)
 label((62, 46), "More GitHub-native directions", 38)
 label(
     (64, 100),
-    "Official 16px Octicons, each tested with GitHubBar's same open lower-right count carve.",
+    "Official 16px Octicons, each tested with GitDock's same open lower-right count carve.",
     18,
     SECONDARY,
 )

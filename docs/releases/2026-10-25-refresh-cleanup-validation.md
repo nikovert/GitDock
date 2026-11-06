@@ -1,7 +1,7 @@
 # Refresh and merged-worktree cleanup validation
 
 The v0.5.0 validation build contains reliable manual refresh and explicitly confirmed
-cleanup of merged, origin-synced, GitHubBar-managed worktrees. Build source commit:
+cleanup of merged, origin-synced, GitDock-managed worktrees. Build source commit:
 `22954b16a6ee` on `feature/refresh-worktree-cleanup` (base `f96b72a`).
 
 ## Behavior
@@ -71,7 +71,7 @@ The ZIP and checksum are produced locally; this work does not publish a GitHub r
 Artifact: `GitHubBar-validation-0.5.0-22954b16a6ee.zip`.
 SHA-256: `30a87438177490632a14198bddaead414c4c4d909e3358990d9d6150080e0644`.
 
-Quit the installed app, unzip the validation build, and replace `GitHubBar.app` in
+Quit the installed app, unzip the validation build, and replace `GitDock.app` in
 `/Applications`. Reopen it and use the Workspace Board's **Refresh** button, then
 **Clean up merged worktrees…** to inspect the preview. Review individual entries
 before approving any removal. See [validation installation notes](validation-release.md)

@@ -1,12 +1,12 @@
 # Searching pull requests
 
-Choose **Search PRs…** in the menu bar, or press Command-F while GitHubBar is active.
+Choose **Search PRs…** in the menu bar, or press Command-F while GitDock is active.
 Type words, code identifiers, paths, or a quoted phrase. Search is literal and
 case-insensitive, not AI semantic search; it does not send code to a model.
 
 ## Results and scope
 
-**In your list** always comes first: matching PRs in your current GitHubBar list.
+**In your list** always comes first: matching PRs in your current GitDock list.
 **Extended results** contains other matching PRs in the repositories selected in
 the search window. Extended search includes open, draft, merged and closed PRs.
 It does not search every public repository on GitHub.
@@ -36,7 +36,7 @@ files. Changed head/base revisions invalidate previously fetched code.
 
 Search uses the explicitly monitored GitHub account. Local cached content is
 private to the current macOS user and excluded from backups, but is not encrypted
-by GitHubBar. Account changes/disconnects and explicit repository removal purge
+by GitDock. Account changes/disconnects and explicit repository removal purge
 the corresponding search data. Clear search cache stops work before clearing it.
 Search does not expose historical private cached content while offline.
 

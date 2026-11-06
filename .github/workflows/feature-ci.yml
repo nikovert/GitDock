@@ -19,9 +19,9 @@ jobs:
       - name: Check core and app sources
         run: scripts/check.sh
       - name: Test core package
-        run: swift test --package-path Packages/GitHubBarCore --parallel
+        run: swift test --package-path Packages/GitDockCore --parallel
       - name: Build and test macOS app
         run: >-
-          xcodebuild test -project GitHubBar.xcodeproj
-          -scheme GitHubBar -configuration Debug
+          xcodebuild test -project GitDock.xcodeproj
+          -scheme GitDock -configuration Debug
           -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO

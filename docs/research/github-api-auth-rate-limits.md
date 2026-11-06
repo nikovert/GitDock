@@ -5,7 +5,7 @@ Research for [Establish GitHub data, authentication, and rate-limit constraints 
 This note distinguishes GitHub-documented facts from product recommendations and estimates:
 
 - **GitHub fact** means the linked GitHub documentation or first-party schema states the behavior.
-- **Recommendation** is the proposed GitHubBar design based on those facts.
+- **Recommendation** is the proposed GitDock design based on those facts.
 - **Estimate** is a planning calculation that must be measured against the live API before implementation is considered complete.
 
 ## Outcome
@@ -25,7 +25,7 @@ The main unresolved product trade-off is authentication, not API capacity:
 - An **OAuth App** best matches “one monitored account across every repository it can access,” but private repository coverage requires the broad `repo` scope. GitHub cannot scope source-code access read-only for OAuth tokens.
 - A **GitHub App** offers genuinely granular read-only permissions and short-lived user tokens, but it only sees repositories included in installations. Every organization must approve/install it and grant the relevant repositories.
 
-For GitHubBar's stated coverage goal, this research recommends an OAuth App as the MVP default, with the scope and organization-access gaps made explicit. A later security-first GitHub App mode remains worthwhile.
+For GitDock's stated coverage goal, this research recommends an OAuth App as the MVP default, with the scope and organization-access gaps made explicit. A later security-first GitHub App mode remains worthwhile.
 
 ## Query architecture
 
@@ -45,7 +45,7 @@ is:pr is:open team-review-requested-user:USERNAME archived:false sort:updated-de
 
 This classification does not require organization Members permission. Enumerating `GET /user/teams` and requesting `read:org`/Members read is optional, only needed if a later feature must identify exactly which of several requested teams contain the monitored account. The [teams REST API](https://docs.github.com/en/rest/teams/teams#get-teams-for-the-authenticated-user) supports that expansion.
 
-**GitHub fact:** GraphQL search returns at most 1,000 results, and connections are paged with cursors. The query is comfortably inside the limit at 500 active items, but GitHubBar must detect when `issueCount` approaches the ceiling and shard by `updated:` time range or repository. See the GraphQL [`search` query](https://docs.github.com/en/graphql/reference/queries#search) and [pagination guide](https://docs.github.com/en/graphql/guides/using-pagination-in-the-graphql-api).
+**GitHub fact:** GraphQL search returns at most 1,000 results, and connections are paged with cursors. The query is comfortably inside the limit at 500 active items, but GitDock must detect when `issueCount` approaches the ceiling and shard by `updated:` time range or repository. See the GraphQL [`search` query](https://docs.github.com/en/graphql/reference/queries#search) and [pagination guide](https://docs.github.com/en/graphql/guides/using-pagination-in-the-graphql-api).
 
 **Recommendation:** paginate to exhaustion on every full reconciliation. A page failure makes the reconciliation incomplete; it must not make omitted pull requests disappear from the cache.
 
@@ -68,7 +68,7 @@ These fields are defined on the GraphQL [`PullRequest` object](https://docs.gith
 
 Every connection must be paginated. GraphQL requires `first` or `last` between 1 and 100, caps one call at 500,000 nodes, and may terminate deep/resource-heavy requests with partial data. GitHub recommends smaller pages, shallower queries, and splitting large queries. See [GraphQL rate and query limits](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#node-limit).
 
-Most pull requests will fit in one reviewer page. If `totalCount > 100`, fetch the remaining reviewers for that PR separately. GitHubBar must never render a truncated roster as complete.
+Most pull requests will fit in one reviewer page. If `totalCount > 100`, fetch the remaining reviewers for that PR separately. GitDock must never render a truncated roster as complete.
 
 ### 3. Refresh required checks precisely
 
@@ -126,7 +126,7 @@ Recommended reduction per actor:
 
 Use `reviewDecision` for the PR-level merge-review truth. Do not infer the whole PR's approval from a simple count of green reviewer avatars; repository rules can require code owners, last-push approval, or a minimum approval count.
 
-A pending team request is displayed as a team entry. If an individual member reviews, that is the individual's review; GitHubBar should not invent a durable “team approved” state after GitHub removes the team request.
+A pending team request is displayed as a team entry. If an individual member reviews, that is the individual's review; GitDock should not invent a durable “team approved” state after GitHub removes the team request.
 
 Dismissed reviews remain visible as Dismissed. If exact dismissal or re-request time matters, query `timelineItems` for `ReviewDismissedEvent`, `ReviewRequestedEvent`, and `ReviewRequestRemovedEvent`. The [GraphQL pull-request schema](https://docs.github.com/en/graphql/reference/pulls) exposes those event types and timestamps.
 
@@ -157,9 +157,9 @@ These fields and enum meanings are documented under [GraphQL pull requests](http
 Recommended MVP scopes:
 
 - `repo` for public/private repository and pull-request coverage;
-- `read:org` only if GitHubBar implements explicit private organization/team membership diagnostics. It is not required for the two primary search queries.
+- `read:org` only if GitDock implements explicit private organization/team membership diagnostics. It is not required for the two primary search queries.
 
-Do not request `notifications`; GitHubBar's review-request model comes from PR state, not the GitHub notification inbox.
+Do not request `notifications`; GitDock's review-request model comes from PR state, not the GitHub notification inbox.
 
 **Flow trade-off.** GitHub currently recommends authorization code plus PKCE over device flow for a public client that can use a browser. A native/open-source client cannot keep a client secret confidential, even though the OAuth token exchange requires it; PKCE protects the authorization code, but the shipped secret must not be treated as a security boundary. Device flow avoids shipping a client secret, but GitHub warns that its lack of a redirect URI enables remote app-impersonation phishing and says not to enable it without reason. See [OAuth authorization](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps) and [OAuth App best practices](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/best-practices-for-creating-an-oauth-app#secure-your-apps-credentials).
 
@@ -171,7 +171,7 @@ OAuth App user tokens remain active until revoked; they do not provide GitHub Ap
 
 **Security advantage.** GitHub Apps support granular permissions, repository selection, and short-lived user tokens. GitHub generally recommends them over OAuth Apps. See [Differences between GitHub Apps and OAuth apps](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/differences-between-github-apps-and-oauth-apps).
 
-GitHubBar would request read access to:
+GitDock would request read access to:
 
 - repository Metadata;
 - Pull requests;

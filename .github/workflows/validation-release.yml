@@ -29,12 +29,12 @@ jobs:
         run: scripts/check.sh
 
       - name: Test core package
-        run: swift test --package-path Packages/GitHubBarCore --parallel
+        run: swift test --package-path Packages/GitDockCore --parallel
 
       - name: Build and test macOS app
         run: >-
-          xcodebuild test -project GitHubBar.xcodeproj
-          -scheme GitHubBar -configuration Debug
+          xcodebuild test -project GitDock.xcodeproj
+          -scheme GitDock -configuration Debug
           -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
 
       - name: Resolve validation version
@@ -59,14 +59,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          app=".build/validation/GitHubBar.app"
+          app=".build/validation/GitDock.app"
           test "$(plutil -extract CFBundleIdentifier raw "$app/Contents/Info.plist")" = "com.nikovert.githubbar"
-          lipo "$app/Contents/MacOS/GitHubBar" -verify_arch arm64
-          lipo "$app/Contents/MacOS/GitHubBar" -verify_arch x86_64
+          lipo "$app/Contents/MacOS/GitDock" -verify_arch arm64
+          lipo "$app/Contents/MacOS/GitDock" -verify_arch x86_64
           codesign --verify --deep --strict "$app"
           cd dist
-          shasum -a 256 -c GitHubBar-validation-*.zip.sha256
-          unzip -t GitHubBar-validation-*.zip >/dev/null
+          shasum -a 256 -c GitDock-validation-*.zip.sha256
+          unzip -t GitDock-validation-*.zip >/dev/null
 
       - name: Create GitHub prerelease
         env:
@@ -76,9 +76,9 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "$TAG" \
-            dist/GitHubBar-validation-*.zip \
-            dist/GitHubBar-validation-*.zip.sha256 \
+            dist/GitDock-validation-*.zip \
+            dist/GitDock-validation-*.zip.sha256 \
             --target "$GITHUB_SHA" \
             --prerelease \
-            --title "GitHubBar $TAG" \
+            --title "GitDock $TAG" \
             --notes-file docs/releases/validation-release.md

@@ -1,6 +1,6 @@
 # Advisory PR chat and agent review adapters
 
-GitHubBar chat uses **Review Chat protocol v1**: one UTF-8 JSON request on stdin,
+GitDock chat uses **Review Chat protocol v1**: one UTF-8 JSON request on stdin,
 EOF, then one UTF-8 JSON response on stdout and exit status zero. There is no
 streaming or handshake. The UI can show a working indicator until completion.
 Protocol v1 is selected by configuring a dedicated chat adapter; there is no
@@ -15,7 +15,7 @@ translates its answer back into the response below.
 
 ## Configuration
 
-In chat settings, choose **Codex**, **Claude**, or **Custom adapter**. GitHubBar
+In chat settings, choose **Codex**, **Claude**, or **Custom adapter**. GitDock
 looks for executable CLIs in PATH and standard Homebrew, local-user, and system
 locations without launching them. On first setup it prefers Codex when both are
 installed. Saving remembers your provider; reopening settings keeps that choice.
@@ -301,7 +301,7 @@ review default/maximum is 600 seconds), a 512 KiB provider
 answer limit, and a 64 KiB provider stderr limit. Codex additionally has an 8 MiB
 total event-stream limit and a 2 MiB maximum event line; events are decoded
 incrementally and progress is discarded instead of accumulated. It keeps the provider in its own
-inherited process group so GitHubBar cancellation can stop both processes.
+inherited process group so GitDock cancellation can stop both processes.
 
 **Advisory is not an absolute enforcement guarantee.** Codex's read-only sandbox
 restricts model-generated shell commands; it does not mean all CLI integrations
@@ -315,7 +315,7 @@ claim to enforce a sandbox around the entire provider executable.
 ### Configure a local installation
 
 Log in once from your own terminal using `codex login` or `claude auth login`.
-GitHubBar runs under the same macOS user and retains HOME, so the CLI can use its
+GitDock runs under the same macOS user and retains HOME, so the CLI can use its
 saved login or keychain state. This adapter intentionally drops API-key environment
 variables and custom `CODEX_HOME`/Claude config-directory variables; installations
 that depend on those need a separately reviewed adapter. Do not put credentials
@@ -333,12 +333,12 @@ pwd
 Use a real Python 3 interpreter rather than a shell function or a version-manager
 shim that depends on interactive shell startup. On the development machine,
 `/opt/homebrew/bin/python3` and `/usr/bin/python3` are available. The app bundles
-both this guide and the script in `GitHubBar.app/Contents/Resources/`. The chat
+both this guide and the script in `GitDock.app/Contents/Resources/`. The chat
 settings' CLI presets select the bundled script. For a manual configuration of an
 app installed in `/Applications`, use this script path:
 
 ```text
-/Applications/GitHubBar.app/Contents/Resources/review-chat-adapter.py
+/Applications/GitDock.app/Contents/Resources/review-chat-adapter.py
 ```
 
 Use any existing directory you own as `workingDirectory`; the adapter creates a
@@ -396,7 +396,7 @@ never invoke installed agents or contact GitHub:
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test \
-  --package-path Packages/GitHubBarCore \
+  --package-path Packages/GitDockCore \
   --scratch-path /private/tmp/githubbar-chat-core-tests --filter ReviewChat
 ```
 

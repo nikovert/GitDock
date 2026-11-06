@@ -4,7 +4,7 @@ Research date: 2026-07-30
 
 ## Question
 
-Can GitHubBar replace branch-name matching with GitHub's public-preview Stack API, and can a Pull request stack open a filtered “See all” view on GitHub?
+Can GitDock replace branch-name matching with GitHub's public-preview Stack API, and can a Pull request stack open a filtered “See all” view on GitHub?
 
 ## Findings
 
@@ -14,7 +14,7 @@ GitHub's GraphQL API now exposes native Stack membership directly on `PullReques
 - `stackEntry` returns the member's position, where position 1 is closest to the base branch.
 - `PullRequestStack.entries` returns the Pull requests in the Stack and is cursor-paginated.
 
-This is sufficient to identify and order a Pull request stack without inferring relationships from head and base branch names. GitHub also documents REST endpoints for creating and managing stacks, but GitHubBar only needs the GraphQL read path for Reconciliation.
+This is sufficient to identify and order a Pull request stack without inferring relationships from head and base branch names. GitHub also documents REST endpoints for creating and managing stacks, but GitDock only needs the GraphQL read path for Reconciliation.
 
 The documented issue and pull-request search qualifiers do not include Stack membership, Stack number, or Stack ID. Live searches against a known public Stack on 2026-07-30 confirmed that likely candidates such as `stack:350`, `is:stacked`, and `stacked:true` do not select its members. Unknown `has:` and `no:` values are ignored, so their unchanged totals are not evidence of hidden Stack support.
 
@@ -27,7 +27,7 @@ Sources:
 
 ## Decision
 
-GitHubBar will:
+GitDock will:
 
 1. Use native Stack node IDs and positions as the only source of Pull request stack identity and order.
 2. Hydrate Stack entries so the submenu can include open, merged, and closed members as navigation context.
@@ -37,4 +37,4 @@ GitHubBar will:
 
 ## Preview limits
 
-GitHubBar requests up to 100 entries per Stack, matching the public-preview Stack creation limit documented at launch. A paginated response or failed member hydration makes Reconciliation partial and the menu does not claim that its hydrated subset is the complete Stack.
+GitDock requests up to 100 entries per Stack, matching the public-preview Stack creation limit documented at launch. A paginated response or failed member hydration makes Reconciliation partial and the menu does not claim that its hydrated subset is the complete Stack.

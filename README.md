@@ -1,16 +1,16 @@
-# GitHubBar
+# GitDock
 
 **Your pull requests, code reviews, and coding agents in one native Mac workspace.**
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-0d1117?style=flat-square&logo=apple&logoColor=white)](https://github.com/nikovert/GitHubBar/releases)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-0d1117?style=flat-square&logo=apple&logoColor=white)](https://github.com/nikovert/GitDock/releases)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](https://www.swift.org/)
 
-GitHubBar opens its dashboard at launch and stays in the Dock and Cmd+Tab. Keep your
+GitDock opens its dashboard at launch and stays in the Dock and Cmd+Tab. Keep your
 review queue in a persistent menu bar popover. Use the resizable workspace to prioritize PRs,
 read diffs, draft and submit reviews, ask an agent questions, and jump into the
 terminal session attached to your worktree.
 
-[**Download v0.10.2 for macOS**](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.2-1/GitHubBar-validation-0.10.2-1261b5fa8cf0.zip) · [SHA-256](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.2-1/GitHubBar-validation-0.10.2-1261b5fa8cf0.zip.sha256) · [Latest release](https://github.com/nikovert/GitHubBar/releases/latest) · [Build from source](#build-from-source)
+[**Download GitDock for macOS**](https://github.com/nikovert/GitDock/releases/latest) · [Latest release](https://github.com/nikovert/GitDock/releases/latest) · [Build from source](#build-from-source)
 
 ![Native dark-mode review workspace with split diffs, file navigation, review controls, and the agent chat panel](docs/assets/workspace-review-dark.png)
 
@@ -146,7 +146,7 @@ PRs, keeping their remote branches. Local worktrees are offered for separate man
 cleanup; closing a draft does not automatically remove its worktree.
 
 The [agent workspace guide](docs/agent-workspace.md) covers checkout configuration,
-terminal sessions, stack inheritance, and updates through `GitHubBarWorkspaceCLI`.
+terminal sessions, stack inheritance, and updates through `GitDockWorkspaceCLI`.
 
 ## Find a PR by what it changes
 
@@ -161,7 +161,7 @@ show when a scan is incomplete. See the [search guide](docs/pr-search.md).
 
 ## Install
 
-GitHubBar requires **macOS 14 or newer** and supports **Apple Silicon and Intel**.
+GitDock requires **macOS 14 or newer** and supports **Apple Silicon and Intel**.
 
 1. Install and sign in to [GitHub CLI](https://cli.github.com/):
 
@@ -170,16 +170,16 @@ GitHubBar requires **macOS 14 or newer** and supports **Apple Silicon and Intel*
    gh auth login
    ```
 
-2. Download the [v0.10.2 app ZIP](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.2-1/GitHubBar-validation-0.10.2-1261b5fa8cf0.zip) and its
-   [SHA-256 checksum](https://github.com/nikovert/GitHubBar/releases/download/validation-v0.10.2-1/GitHubBar-validation-0.10.2-1261b5fa8cf0.zip.sha256).
+2. Download the GitDock app ZIP and its adjacent SHA-256 checksum from the
+   [latest release](https://github.com/nikovert/GitDock/releases/latest).
    This universal build supports both Apple Silicon and Intel Macs.
-   [Release notes](https://github.com/nikovert/GitHubBar/releases/tag/validation-v0.10.2-1) describe the included features.
+   [Release notes](https://github.com/nikovert/GitDock/releases/latest) describe the included features.
 
-3. Verify the downloaded ZIP, then unzip and move `GitHubBar.app` to **Applications**:
+3. Verify the downloaded ZIP, then unzip and move `GitDock.app` to **Applications**:
 
    ```sh
    cd ~/Downloads
-   shasum -a 256 --check GitHubBar-validation-0.10.2-1261b5fa8cf0.zip.sha256
+   shasum -a 256 --check GitDock-validation-*.zip.sha256
    ```
 
 Validation builds are ad-hoc signed and not Apple-notarized. If macOS blocks the
@@ -197,10 +197,10 @@ Install full Xcode, select its developer tools, then run from this repository:
 ```bash
 brew install xcodegen gh tmux
 scripts/generate-project.sh
-open GitHubBar.xcodeproj
+open GitDock.xcodeproj
 ```
 
-Build and run the `GitHubBar` scheme. Authenticate `gh`, open **Workspace Board**,
+Build and run the `GitDock` scheme. Authenticate `gh`, open **Workspace Board**,
 and select a PR. The **Workspace** tab contains checkout and worktree-root setup.
 Install and authenticate `codex` or `claude` to use their optional session/chat
 integrations; terminal automation may prompt for macOS permission on first use.
@@ -208,23 +208,33 @@ integrations; terminal automation may prompt for macOS permission on first use.
 To create a universal validation ZIP locally without installing the app:
 
 ```bash
-GITHUBBAR_VERSION=0.10.2 scripts/package-validation.sh
+GITHUBBAR_VERSION=0.11.0 scripts/package-validation.sh
 ```
 
 The ZIP and checksum are written to `dist/`. The app bundles
-`GitHubBarWorkspaceCLI`, the chat adapter, and its setup guide. See
+`GitDockWorkspaceCLI`, the chat adapter, and its setup guide. See
 [packaging checks](docs/agent-reviews.md#build-and-verify) before overriding paths.
 
-The v0.10.2 workspace-lock fix passed **279 core tests**, including regressions
-for launching sessions during background polling and cleanup scans, and preserving
-newer session state when a delayed poll completes. Repository checks and strict
-app typechecking also passed. The download is a universal build with signature,
-archive, and SHA-256 checks. See the [validation report](docs/workspace-validation.md)
-for earlier app coverage and manual checks. Run `scripts/check.sh` before contributing.
+The GitDock rename passed **279 core tests** and the Xcode app suite (**138 tests,
+one skipped, no failures**), plus **34 adapter tests**. Repository checks and strict
+app typechecking also passed. One cancellation test hit a process-ID timing race
+in the initial parallel core run; the complete serial rerun passed. See the
+[validation report](docs/workspace-validation.md) for earlier app coverage and manual
+checks. Run `scripts/check.sh` before contributing.
+
+## Upgrading from GitHubBar
+
+GitDock is the new name of this fork. Quit GitHubBar, install `GitDock.app`, and
+remove the old app from Applications. Preferences, drafts, cached PRs, worktrees,
+and sessions continue to use the existing `com.nikovert.githubbar` bundle identity,
+`~/Library/Application Support/GitHubBar` data, and `githubbar.*` preference keys.
+The `GITHUBBAR_*` environment variables and agent protocol markers remain supported
+under their existing names. The bundled CLI is now `GitDockWorkspaceCLI`; update
+any custom scripts or adapter paths that explicitly point inside `GitHubBar.app`.
 
 ## Local state and privacy
 
-GitHubBar uses your existing GitHub CLI login. GitHub tokens stay in memory;
+GitDock uses your existing GitHub CLI login. GitHub tokens stay in memory;
 preferences, drafts, notes, and cached PR data stay on your Mac. Diagnostics omit
 repository names, PR titles, usernames, and credentials.
 

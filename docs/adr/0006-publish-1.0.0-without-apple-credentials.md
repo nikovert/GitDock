@@ -4,7 +4,7 @@ status: accepted
 
 # Publish 1.0.0 without Apple credentials
 
-GitHubBar 1.0.0 will be published as a normal GitHub release using a universal, ad-hoc-signed validation build. It will not be Developer ID signed, Apple-notarized, or connected to the Sparkle update channel.
+GitDock 1.0.0 will be published as a normal GitHub release using a universal, ad-hoc-signed validation build. It will not be Developer ID signed, Apple-notarized, or connected to the Sparkle update channel.
 
 This decision explicitly supersedes ADR-0002's requirement that the first non-prerelease version cross the Apple and Sparkle trust gate. Release notes and installation documentation must disclose the missing trust properties and give users checksum verification and the narrow Gatekeeper **Open Anyway** path.
 

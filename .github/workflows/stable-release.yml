@@ -81,10 +81,10 @@ jobs:
           set -euo pipefail
           xcodegen generate
           xcodebuild -resolvePackageDependencies \
-            -project GitHubBar.xcodeproj \
-            -scheme GitHubBar \
-            -derivedDataPath "$RUNNER_TEMP/GitHubBarDerivedData"
-          generate_keys="$(find "$RUNNER_TEMP/GitHubBarDerivedData/SourcePackages/artifacts" -type f -name generate_keys -perm +111 -print -quit)"
+            -project GitDock.xcodeproj \
+            -scheme GitDock \
+            -derivedDataPath "$RUNNER_TEMP/GitDockDerivedData"
+          generate_keys="$(find "$RUNNER_TEMP/GitDockDerivedData/SourcePackages/artifacts" -type f -name generate_keys -perm +111 -print -quit)"
           test -x "$generate_keys"
           "$generate_keys" --account "$SPARKLE_ACCOUNT" -f "$GITHUBBAR_SPARKLE_PRIVATE_KEY_FILE" >/dev/null
           rm -f "$GITHUBBAR_SPARKLE_PRIVATE_KEY_FILE"
@@ -99,9 +99,9 @@ jobs:
           GITHUBBAR_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           GITHUBBAR_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
           GITHUBBAR_SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
-          GITHUBBAR_SPARKLE_FEED_URL: https://github.com/FranciscoMoretti/GitHubBar/releases/latest/download/appcast.xml
-          GITHUBBAR_DOWNLOAD_URL_PREFIX: https://github.com/FranciscoMoretti/GitHubBar/releases/download/${{ inputs.tag }}/
-          GITHUBBAR_BUILD_DIR: ${{ runner.temp }}/GitHubBarStable
+          GITHUBBAR_SPARKLE_FEED_URL: https://github.com/nikovert/GitDock/releases/latest/download/appcast.xml
+          GITHUBBAR_DOWNLOAD_URL_PREFIX: https://github.com/nikovert/GitDock/releases/download/${{ inputs.tag }}/
+          GITHUBBAR_BUILD_DIR: ${{ runner.temp }}/GitDockStable
         run: scripts/package-stable.sh
 
       - name: Create stable GitHub release
@@ -114,12 +114,12 @@ jobs:
           set -euo pipefail
           test -f "$NOTES_FILE"
           shopt -s nullglob
-          assets=(dist/stable/GitHubBar-*.zip dist/stable/GitHubBar-*.zip.sha256 dist/stable/appcast.xml)
+          assets=(dist/stable/GitDock-*.zip dist/stable/GitDock-*.zip.sha256 dist/stable/appcast.xml)
           assets+=(dist/stable/*.delta)
           gh release create "$TAG" "${assets[@]}" \
             --target "$GITHUB_SHA" \
             --latest \
-            --title "GitHubBar $TAG" \
+            --title "GitDock $TAG" \
             --notes-file "$NOTES_FILE"
 
       - name: Remove ephemeral credentials

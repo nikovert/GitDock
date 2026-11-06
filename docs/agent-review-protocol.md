@@ -5,8 +5,8 @@
 > CLI protocol and existing external clients. Local Codex/Claude chat and explicit
 > GitHub review posting are described in [Review workspace](review-workspace.md).
 
-The bundled `GitHubBarWorkspaceCLI agent` command provides local review state and queue
-operations for GitHubBar and compatible review workers. See
+The bundled `GitDockWorkspaceCLI agent` command provides local review state and queue
+operations for GitDock and compatible review workers. See
 [Agent reviews](agent-reviews.md) for connection setup, policy defaults, and packaging.
 
 ## Transport and storage
@@ -18,7 +18,7 @@ storage errors exit with status 2 and a diagnostic on stderr. Requests larger th
 2,000,000 bytes are rejected. Do not interpret stderr as a JSON response.
 
 ```bash
-workspace_cli="/Applications/GitHubBar.app/Contents/MacOS/GitHubBarWorkspaceCLI"
+workspace_cli="/Applications/GitDock.app/Contents/MacOS/GitDockWorkspaceCLI"
 printf '%s\n' '{"op":"show"}' | "$workspace_cli" agent
 ```
 

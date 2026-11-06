@@ -33,7 +33,7 @@ Display separate removed, skipped, and failed results; preserve retryable failur
 
 The following are conservative implementation choices, not broader cleanup authority:
 
-- Only GitHubBar-managed linked worktrees under the configured worktree root.
+- Only GitDock-managed linked worktrees under the configured worktree root.
   Never the main checkout, pinned external worktrees, or paths escaping via symlinks.
 - Confirm repository identity, registration, and fresh GitHub merged status.
   Missing from the open list is not proof of merge. For a stack, require complete,

@@ -1,6 +1,6 @@
 # Stable release runbook
 
-Stable GitHubBar releases are universal Developer ID applications with hardened runtime, Apple notarization and stapling, and Sparkle 2 updates protected by both Apple code signing and a maintainer-owned Ed25519 key. Validation builds remain a separate ad-hoc channel and cannot initialize Sparkle.
+Stable GitDock releases are universal Developer ID applications with hardened runtime, Apple notarization and stapling, and Sparkle 2 updates protected by both Apple code signing and a maintainer-owned Ed25519 key. Validation builds remain a separate ad-hoc channel and cannot initialize Sparkle.
 
 ## One-time ownership and credentials
 
@@ -14,10 +14,10 @@ The maintainer—not an agent or repository—owns these credentials:
 The stable appcast URL is:
 
 ```text
-https://github.com/FranciscoMoretti/GitHubBar/releases/latest/download/appcast.xml
+https://github.com/nikovert/GitDock/releases/latest/download/appcast.xml
 ```
 
-Only non-prerelease stable releases may be marked Latest. Their update archives use the immutable per-tag prefix `https://github.com/FranciscoMoretti/GitHubBar/releases/download/<tag>/`.
+Only non-prerelease stable releases may be marked Latest. Their update archives use the immutable per-tag prefix `https://github.com/nikovert/GitDock/releases/download/<tag>/`.
 
 ## Local stable build
 
@@ -28,10 +28,10 @@ export GITHUBBAR_VERSION=1.0.0
 export GITHUBBAR_BUILD_NUMBER=100
 export GITHUBBAR_DEVELOPMENT_TEAM=YOUR_TEAM_ID
 export GITHUBBAR_SIGNING_IDENTITY='Developer ID Application: Your Name (YOUR_TEAM_ID)'
-export GITHUBBAR_NOTARY_PROFILE=GitHubBar
+export GITHUBBAR_NOTARY_PROFILE=GitDock
 export GITHUBBAR_SPARKLE_PUBLIC_KEY='PUBLIC_BASE64_KEY'
-export GITHUBBAR_SPARKLE_FEED_URL='https://github.com/FranciscoMoretti/GitHubBar/releases/latest/download/appcast.xml'
-export GITHUBBAR_DOWNLOAD_URL_PREFIX='https://github.com/FranciscoMoretti/GitHubBar/releases/download/v1.0.0/'
+export GITHUBBAR_SPARKLE_FEED_URL='https://github.com/nikovert/GitDock/releases/latest/download/appcast.xml'
+export GITHUBBAR_DOWNLOAD_URL_PREFIX='https://github.com/nikovert/GitDock/releases/download/v1.0.0/'
 scripts/package-stable.sh
 ```
 

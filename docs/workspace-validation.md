@@ -302,8 +302,8 @@ Use full Xcode on this Mac:
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 export CLANG_MODULE_CACHE_PATH=/tmp/githubbar-clang-cache
 export SWIFTPM_MODULECACHE_OVERRIDE=/tmp/githubbar-swift-cache
-swift test --disable-sandbox --package-path Packages/GitHubBarCore
-xcodebuild test -project GitHubBar.xcodeproj -scheme GitHubBar \
+swift test --disable-sandbox --package-path Packages/GitDockCore
+xcodebuild test -project GitDock.xcodeproj -scheme GitDock \
   -destination 'platform=macOS' -derivedDataPath .build/xcode \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
 python3 -m unittest discover -s scripts/tests -v
@@ -322,7 +322,7 @@ Computer Use access was unavailable in this session. The following external UI c
 could not be performed; the implementation and native AppKit tests do not substitute
 for a person trying them on the installed validation app:
 
-1. Launch the validation app; check Dashboard is selected and GitHubBar appears in
+1. Launch the validation app; check Dashboard is selected and GitDock appears in
    the Dock and Cmd+Tab. Close its window and click its Dock icon to restore it.
 2. Open the status popover, scroll, refresh, and confirm it remains open at the same
    position. Close it with Escape, an outside click, and the status icon.
@@ -334,6 +334,6 @@ for a person trying them on the installed validation app:
 5. On a disposable PR, explicitly post one draft then a batch review. This session
    uses fake transports to cover publishing; it does not perform live GitHub writes.
 
-Legacy worker files, external Giles processes, and the existing installed GitHubBar
+Legacy worker files, external Giles processes, and the existing installed GitDock
 were not deleted or terminated. The local validation app is ad-hoc signed and is not
 notarized, consistent with the repository's existing validation build workflow.

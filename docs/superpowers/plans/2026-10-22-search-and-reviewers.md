@@ -28,7 +28,7 @@
 
 ## Task 1: Core search
 
-**Files:** New `Packages/GitHubBarCore/Sources/GitHubBarCore/Search/` and core search tests.
+**Files:** New `Packages/GitDockCore/Sources/GitDockCore/Search/` and core search tests.
 
 **Interfaces:** Produce `PRSearchEngine` with async state stream, context update, query, submitted scan, pause, and clear-cache operations. Publish exact signatures before UI integration. Accept explicit selected account, active PRs and repository selection. Keep authentication and private cache logic inside core.
 
@@ -40,7 +40,7 @@
 
 **Files:** Existing review core and views; new reviewer configuration/launcher and Settings section; review documentation/tests.
 
-**Interfaces:** A shared `ReviewAgentModel` exposes saved executable/argument/working-directory configuration and explicit start/stop/status. Settings embeds `ReviewAgentSettingsView`. Workers consume the unchanged `GitHubBarWorkspaceCLI agent` JSON protocol.
+**Interfaces:** A shared `ReviewAgentModel` exposes saved executable/argument/working-directory configuration and explicit start/stop/status. Settings embeds `ReviewAgentSettingsView`. Workers consume the unchanged `GitDockWorkspaceCLI agent` JSON protocol.
 
 - [x] Add failing migration, literal argv, validation, process-status and configurable-priority tests.
 - [x] Implement optional local worker launcher; external workers remain supported. Never execute from editable draft Settings before Save/Start.
@@ -49,7 +49,7 @@
 
 ## Task 3: Search window and application integration
 
-**Files:** New `GitHubBar/Search/`; `AppDelegate`, `AppActions`, menus, Settings, and app tests.
+**Files:** New `GitDock/Search/`; `AppDelegate`, `AppActions`, menus, Settings, and app tests.
 
 **Interfaces:** Consume core search state; keep “In your list” before “Extended results”; expose repository selection, explicit search/resume/pause, coverage, cache clearing and links.
 

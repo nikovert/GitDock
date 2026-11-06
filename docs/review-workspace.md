@@ -1,6 +1,6 @@
 # Manage and review pull requests
 
-GitHubBar opens its dashboard at launch and appears in the Dock and Cmd+Tab.
+GitDock opens its dashboard at launch and appears in the Dock and Cmd+Tab.
 Closing the window leaves the menu bar app running. Click its Dock icon to restore
 the same workspace. The status icon opens an anchored popover; refresh updates the
 existing contents. Escape, an outside click, or the status icon closes it.
@@ -30,7 +30,7 @@ failed refresh information rather than implying every field is current.
 
 Approved follows the required approval count, independently of outstanding requests
 to other reviewers. GitHub's explicit aggregate decision takes precedence. When it
-is absent, GitHubBar can verify eligible approvals against the active branch rules;
+is absent, GitDock can verify eligible approvals against the active branch rules;
 unavailable policy or unverified extra review requirements remain conservative.
 Conflicts, CI, and unresolved conversations are separate merge-readiness checks.
 
@@ -180,7 +180,7 @@ remains for compatibility and is not driven by the app.
 ## Worktree cleanup and old drafts
 
 **Automatic merged-worktree cleanup is enabled by default.** After a successful
-refresh, GitHubBar checks its managed worktrees and removes eligible merged work
+refresh, GitDock checks its managed worktrees and removes eligible merged work
 with no live session. Fresh PR/stack state, origin head, repository registration,
 local contents, account and ownership must agree. Uncommitted, untracked or ignored
 files, extra local commits, live sessions and detected working-directory processes
@@ -203,7 +203,7 @@ Completed removals remain recorded even if cleanup is stopped or the account cha
 If removal succeeds but saving session links fails, the worktree is listed as removed
 with a follow-up warning and still counts as needing review.
 
-GitHubBar also lists other Git-registered worktrees belonging to configured repository
+GitDock also lists other Git-registered worktrees belonging to configured repository
 checkouts, including paths outside the managed root. These require manual approval.
 Unassociated worktrees must be clean and their exact head verified on a remote branch.
 Main checkouts, locked/prunable registrations, ambiguous paths, unverifiable origins,

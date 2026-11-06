@@ -5,7 +5,7 @@ superseded-by: 0006-publish-1.0.0-without-apple-credentials.md
 
 # Separate validation builds from stable distribution
 
-GitHubBar will use ad-hoc-signed GitHub prereleases while the MVP is being validated, with Sparkle disabled and updates installed manually. The first stable release must cross a hard trust gate: a universal macOS 14+ build signed with GitHubBar's Developer ID identity, hardened, notarized, stapled, and published through GitHub Releases with a dedicated Sparkle signing key and CodexBar-style stable update feed; this avoids paying the release-infrastructure cost before validation without normalizing an unsigned public product.
+GitDock will use ad-hoc-signed GitHub prereleases while the MVP is being validated, with Sparkle disabled and updates installed manually. The first stable release must cross a hard trust gate: a universal macOS 14+ build signed with GitDock's Developer ID identity, hardened, notarized, stapled, and published through GitHub Releases with a dedicated Sparkle signing key and CodexBar-style stable update feed; this avoids paying the release-infrastructure cost before validation without normalizing an unsigned public product.
 
 ## Consequences
 

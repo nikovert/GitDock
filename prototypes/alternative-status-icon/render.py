@@ -143,7 +143,7 @@ def place_icon(kind, count, x, y, size):
     canvas.paste(Image.new("RGB", (size, size), WHITE), (x, y), mask)
 
 
-label((70, 53), "Which mark best describes GitHubBar?", 38)
+label((70, 53), "Which mark best describes GitDock?", 38)
 label(
     (72, 106),
     "Same 18 × 18 template canvas, same open-corner carve, same counts — only the semantic mark changes.",

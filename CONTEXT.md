@@ -1,27 +1,27 @@
-# GitHubBar
+# GitDock
 
-GitHubBar is a standalone native macOS menu-bar product for keeping high-volume GitHub work visible and actionable without repeatedly navigating GitHub's web interface.
+GitDock is a standalone native macOS menu-bar product for keeping high-volume GitHub work visible and actionable without repeatedly navigating GitHub's web interface.
 
 ## Language
 
-**GitHubBar**:
+**GitDock**:
 The standalone product being designed in this repository; CodexBar is a design and architectural reference, not a host application or upstream codebase.
 _Avoid_: CodexBar plugin, CodexBar feature
 
 **Monitored account**:
-The single authenticated GitHub account whose accessible repositories supply GitHubBar's pull-request workload. Repository scope selects the subset relevant on this Mac.
+The single authenticated GitHub account whose accessible repositories supply GitDock's pull-request workload. Repository scope selects the subset relevant on this Mac.
 _Avoid_: User, identity, profile
 
 **Account connection**:
-The authenticated relationship through which GitHubBar observes the monitored account's accessible pull-request workload. Its credential health and its access coverage are independent.
+The authenticated relationship through which GitDock observes the monitored account's accessible pull-request workload. Its credential health and its access coverage are independent.
 _Avoid_: Login, token, authentication
 
 **Access coverage**:
-The organizations and repositories visible to GitHubBar through the account connection. Successful authentication does not guarantee complete access coverage.
+The organizations and repositories visible to GitDock through the account connection. Successful authentication does not guarantee complete access coverage.
 _Avoid_: Permissions, login status, refresh health
 
 **Account connection required**:
-The condition in which GitHubBar cannot observe an active workload because GitHub CLI is missing or no usable authenticated CLI session is available.
+The condition in which GitDock cannot observe an active workload because GitHub CLI is missing or no usable authenticated CLI session is available.
 _Avoid_: Logged out, refresh failed
 
 **Review request**:
@@ -53,7 +53,7 @@ The pull request at GitHub Stack position 1.
 _Avoid_: Parent PR, first change
 
 **Review decision**:
-GitHub's aggregate review status for an Authored pull request: approved, changes requested, review required, or absent. When GitHub omits the aggregate, GitHubBar may derive approval from complete eligible review history and verified active branch requirements. Outstanding review requests do not require every requested reviewer to approve; conflicts and CI are separate from review approval.
+GitHub's aggregate review status for an Authored pull request: approved, changes requested, review required, or absent. When GitHub omits the aggregate, GitDock may derive approval from complete eligible review history and verified active branch requirements. Outstanding review requests do not require every requested reviewer to approve; conflicts and CI are separate from review approval.
 _Avoid_: Review status, reviewer state
 
 **Outstanding review request**:
@@ -97,7 +97,7 @@ The device-local set of repositories configured in Settings for the Pinned Repos
 _Avoid_: Selected repositories, favorites, mute list
 
 **Review count**:
-The number of pull requests in Needs your review under the current Repository scope. It is GitHubBar's only proactive attention signal in the MVP.
+The number of pull requests in Needs your review under the current Repository scope. It is GitDock's only proactive attention signal in the MVP.
 _Avoid_: Unread count, notification count
 
 **Account workload**:

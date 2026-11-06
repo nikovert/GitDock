@@ -4,7 +4,7 @@ Research date: 2026-07-21
 
 ## Question
 
-When members of one pull-request stack occupy different workflow states, should GitHubBar show one canonical stack row in a single section, or represent the stack in every relevant section?
+When members of one pull-request stack occupy different workflow states, should GitDock show one canonical stack row in a single section, or represent the stack in every relevant section?
 
 ## Findings
 
@@ -16,11 +16,11 @@ When members of one pull-request stack occupy different workflow states, should 
 | Gerrit | Gerrit presents dependent changes together in a **Relation Chain**, while review properties remain attached to individual changes. An arrow identifies the currently viewed change. | The chain supplies context around the selected change; it does not establish a canonical workflow bucket for the chain. [Gerrit: Changes](https://gerrit-review.googlesource.com/Documentation/concept-changes.html#related-changes) |
 | Git Town | Git Town can embed a stack breadcrumb in every proposal and allows root-first direction. | It exposes lineage but does not define an aggregate review status or inbox placement for the stack. [Git Town proposal breadcrumb](https://www.git-town.com/how-to/proposal-breadcrumb.html) |
 
-## What this means for GitHubBar
+## What this means for GitDock
 
-The common pattern is **individual workflow state plus stack context**. None of the first-party sources found assigns a mixed stack to one highest-priority status bucket. Graphite, the closest match to GitHubBar's sectioned inbox, explicitly moves each PR to its own appropriate section.
+The common pattern is **individual workflow state plus stack context**. None of the first-party sources found assigns a mixed stack to one highest-priority status bucket. Graphite, the closest match to GitDock's sectioned inbox, explicitly moves each PR to its own appropriate section.
 
-Therefore, GitHubBar should keep a collapsed representation of the stack in every section containing one or more of its PRs. This is safer than promoting the entire stack to one section because it does not hide authored work, requested reviews, or approved PRs from the section where the user expects to find them.
+Therefore, GitDock should keep a collapsed representation of the stack in every section containing one or more of its PRs. This is safer than promoting the entire stack to one section because it does not hide authored work, requested reviews, or approved PRs from the section where the user expects to find them.
 
 For a compact menu:
 
@@ -33,7 +33,7 @@ Example: a five-PR stack with one requested review and two authored approvals ap
 
 ## Recommendation
 
-Keep GitHubBar's current cross-section representation rather than introducing one canonical highest-priority row. Improve its clarity with a section-local/total count and per-member status in the submenu.
+Keep GitDock's current cross-section representation rather than introducing one canonical highest-priority row. Improve its clarity with a section-local/total count and per-member status in the submenu.
 
 ## Uncertainty
 

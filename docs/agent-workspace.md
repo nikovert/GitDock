@@ -7,7 +7,7 @@ This fork adds a local board and pinned Codex/Claude sessions to the menu-bar PR
 It does not write board metadata to GitHub or Slack. The board file lives at
 `~/Library/Application Support/GitHubBar/workspace.json`, with owner-only permissions.
 Agents and the app coordinate edits using a local lock and atomic writes. Do not edit the
-JSON file directly while GitHubBar is running.
+JSON file directly while GitDock is running.
 
 ## Set up
 
@@ -18,7 +18,7 @@ the right arrow to access the stack submenu. Search results outside your current
 carry their title, author and available review metadata into the board.
 Under **Workspace setup**, provide an absolute path to the local checkout for each
 repository and an absolute worktree root outside those checkouts. New worktrees fetch
-`pull/NUMBER/head` from the checkout's `origin` remote. GitHubBar refuses to launch
+`pull/NUMBER/head` from the checkout's `origin` remote. GitDock refuses to launch
 unless `origin` points at the GitHub repository that owns the PR. A fork-only `origin`
 may not expose its PR refs.
 
@@ -38,7 +38,7 @@ tmux session name in the board. A session pinned to a stack is available from it
 PRs. Stopping kills only the linked tmux session. Restarting starts it again in the same
 worktree.
 
-**Remove worktree** is available only for worktrees created by GitHubBar. It refuses to
+**Remove worktree** is available only for worktrees created by GitDock. It refuses to
 remove one with uncommitted or ignored files. **Unpin** removes the local link only; it does not
 stop tmux or delete files.
 
@@ -47,7 +47,7 @@ stop tmux or delete files.
 The review header's **Have an agent make all fixes…** button collects fresh published
 comments, current inline/general drafts, and the review summary. Choose Codex or
 Claude and edit the default assess/fix/test/commit instructions before starting.
-The configured checkout and `origin` must match the PR repository. GitHubBar verifies
+The configured checkout and `origin` must match the PR repository. GitDock verifies
 the current account and head/base, fetches the exact PR head, and creates a fresh
 branch/worktree; a changed head stops the launch.
 
@@ -61,24 +61,24 @@ context is included or the action fails with an explanation.
 ## Let agents update the board
 
 Every validation ZIP and stable app includes the command-line client at
-`GitHubBar.app/Contents/MacOS/GitHubBarWorkspaceCLI`. Xcode's `GitHubBar` scheme also
+`GitDock.app/Contents/MacOS/GitDockWorkspaceCLI`. Xcode's `GitDock` scheme also
 builds and embeds it. For an app installed in `/Applications`, inspect the board with:
 
 ```bash
-"/Applications/GitHubBar.app/Contents/MacOS/GitHubBarWorkspaceCLI" show
+"/Applications/GitDock.app/Contents/MacOS/GitDockWorkspaceCLI" show
 ```
 
 Use your actual app location if it is elsewhere. A separate Swift build is optional;
 from the repository root:
 
 ```bash
-swift build --package-path Packages/GitHubBarCore --product GitHubBarWorkspaceCLI
+swift build --package-path Packages/GitDockCore --product GitDockWorkspaceCLI
 ```
 
 Then ask Codex or Claude to use it for their local progress. Example:
 
 ```bash
-swift run --package-path Packages/GitHubBarCore GitHubBarWorkspaceCLI set \
+swift run --package-path Packages/GitDockCore GitDockWorkspaceCLI set \
   --pr https://github.com/OWNER/REPO/pull/123 \
   --priority high \
   --tags blocked,agent-needs-attention \
@@ -93,7 +93,7 @@ previous value intact. `--priority none` clears the priority; `--tags ""` clears
 and edit custom tags in the board window. To inspect the current document:
 
 ```bash
-swift run --package-path Packages/GitHubBarCore GitHubBarWorkspaceCLI show
+swift run --package-path Packages/GitDockCore GitDockWorkspaceCLI show
 ```
 
 For testing without touching your real board, set `GITHUBBAR_WORKSPACE_DIR` to an
@@ -136,7 +136,7 @@ Scanning does not stop sessions or remove worktrees. Choose either:
   names/activity, and skip reasons. Nothing is preselected; choose rows and press
   **Stop and close selected**.
 
-Only GitHubBar-created linked worktrees under the configured root are automatic.
+Only GitDock-created linked worktrees under the configured root are automatic.
 The PR must be verified merged, and local HEAD must exactly match the PR head
 freshly fetched from origin and reported by GitHub. This also works after squash merges or
 source-branch deletion. Current stack membership is checked even when a session was
@@ -144,7 +144,7 @@ originally linked to a single PR. Stacks require all members verified merged; mi
 incomplete, or over-100-member stack metadata blocks cleanup.
 
 Modified, staged, untracked, ignored, sparse/hidden, locked, or unverifiable
-worktrees are skipped. GitHubBar checks again before stopping sessions and before
+worktrees are skipped. GitDock checks again before stopping sessions and before
 removal. Changed configuration, HEAD, or session activity invalidates approval.
 Session checks include the tmux server PID/start time and session creation time,
 so restarting tmux and reusing a session ID requires a fresh scan.

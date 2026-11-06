@@ -48,11 +48,11 @@ if ! security find-identity -v -p codesigning | rg -Fq "$GITHUBBAR_SIGNING_IDENT
 fi
 
 derived_data="$build_root/DerivedData"
-archive_path="$build_root/GitHubBar.xcarchive"
-app_path="$archive_path/Products/Applications/GitHubBar.app"
-notarization_zip="$build_root/GitHubBar-notarization.zip"
+archive_path="$build_root/GitDock.xcarchive"
+app_path="$archive_path/Products/Applications/GitDock.app"
+notarization_zip="$build_root/GitDock-notarization.zip"
 updates_dir="$build_root/updates"
-artifact_base="GitHubBar-$GITHUBBAR_VERSION-$GITHUBBAR_BUILD_NUMBER"
+artifact_base="GitDock-$GITHUBBAR_VERSION-$GITHUBBAR_BUILD_NUMBER"
 final_zip="$dist_dir/$artifact_base.zip"
 notary_result="$build_root/notary-result.json"
 notary_log="$build_root/notary-log.json"
@@ -63,8 +63,8 @@ mkdir -p "$build_root" "$dist_dir" "$updates_dir"
 
 xcodegen generate
 xcodebuild \
-  -project GitHubBar.xcodeproj \
-  -scheme GitHubBar \
+  -project GitDock.xcodeproj \
+  -scheme GitDock \
   -configuration Stable \
   -derivedDataPath "$derived_data" \
   -archivePath "$archive_path" \
@@ -80,11 +80,11 @@ xcodebuild \
   GITHUBBAR_SPARKLE_FEED_URL="$GITHUBBAR_SPARKLE_FEED_URL"
 
 if [[ ! -d "$app_path" ]]; then
-  print -u2 "Stable archive did not contain GitHubBar.app."
+  print -u2 "Stable archive did not contain GitDock.app."
   exit 1
 fi
 
-for executable in GitHubBar GitHubBarWorkspaceCLI; do
+for executable in GitDock GitDockWorkspaceCLI; do
   binary="$app_path/Contents/MacOS/$executable"
   if [[ ! -x "$binary" ]]; then
     print -u2 "Stable archive is missing executable $executable."
@@ -180,7 +180,7 @@ fi
 "$sparkle_bin_dir/generate_appcast" \
   --account "$sparkle_account" \
   --download-url-prefix "$GITHUBBAR_DOWNLOAD_URL_PREFIX" \
-  --link "https://github.com/FranciscoMoretti/GitHubBar" \
+  --link "https://github.com/nikovert/GitDock" \
   --embed-release-notes \
   --maximum-versions 3 \
   "$updates_dir"
@@ -201,5 +201,5 @@ shasum -a 256 "$final_zip" > "$final_zip.sha256"
 
 print "Created notarized stable artifact: $final_zip"
 print "Created signed appcast: $dist_dir/appcast.xml"
-print "Architectures: $(lipo -archs "$app_path/Contents/MacOS/GitHubBar")"
-print "CLI architectures: $(lipo -archs "$app_path/Contents/MacOS/GitHubBarWorkspaceCLI")"
+print "Architectures: $(lipo -archs "$app_path/Contents/MacOS/GitDock")"
+print "CLI architectures: $(lipo -archs "$app_path/Contents/MacOS/GitDockWorkspaceCLI")"

@@ -13,7 +13,7 @@ workspace. See [the user guide](../review-workspace.md) and
 - 11 Python adapter tests passed without invoking a real provider.
 - `scripts/check.sh` passed, including Swift 6 strict concurrency checks.
 - Management, unified review, split review, and minimum-width renders were inspected.
-- A read-only live load of `nikovert/GitHubBar#2` returned nine files, creation time,
+- A read-only live load of `nikovert/GitDock#2` returned nine files, creation time,
   and checks successfully. No comments or reviews were published.
 
 ## Independent review

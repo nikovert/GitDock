@@ -17,7 +17,7 @@ resolution, workspace persistence, and agent lifecycle code.
 ## Global Constraints
 
 - Remain agent-agnostic; no new runtime dependencies or GitHub writes.
-- Remove only confirmed, clean, origin-synced, GitHubBar-managed linked worktrees.
+- Remove only confirmed, clean, origin-synced, GitDock-managed linked worktrees.
 - No forced removal, recursive deletion, branch deletion, or automatic cleanup.
 - Stop only sessions explicitly approved in the bulk or individual confirmation.
 - Tests use temporary repositories and fake network boundaries, never user worktrees.
@@ -33,8 +33,8 @@ resolution, workspace persistence, and agent lifecycle code.
 ## Task 1: Reliable manual refresh
 
 **Files:**
-- Modify `Packages/GitHubBarCore/Sources/GitHubBarCore/Workload/WorkloadEngine.swift`.
-- Extend `Packages/GitHubBarCore/Tests/GitHubBarCoreTests/WorkloadEngineTests.swift`.
+- Modify `Packages/GitDockCore/Sources/GitDockCore/Workload/WorkloadEngine.swift`.
+- Extend `Packages/GitDockCore/Tests/GitDockCoreTests/WorkloadEngineTests.swift`.
 - Extend app-level menu tests if action routing needs changes.
 
 **Interfaces:** Preserve `WorkloadEngine.send(_:)` and existing presentation state.
@@ -53,11 +53,11 @@ resolution, workspace persistence, and agent lifecycle code.
 ## Task 2: Safe core cleanup
 
 **Files:**
-- Create `Packages/GitHubBarCore/Sources/GitHubBarCore/LocalWorkspace/WorktreeCleanup.swift`.
-- Create `Packages/GitHubBarCore/Sources/GitHubBarCore/LocalWorkspace/WorktreeCleanupGitHubClient.swift`.
-- Modify `Packages/GitHubBarCore/Sources/GitHubBarCore/LocalWorkspace/AgentSessionManager.swift`.
-- Create `Packages/GitHubBarCore/Tests/GitHubBarCoreTests/WorktreeCleanupTests.swift`.
-- Extend `Packages/GitHubBarCore/Tests/GitHubBarCoreTests/AgentSessionSafetyTests.swift`.
+- Create `Packages/GitDockCore/Sources/GitDockCore/LocalWorkspace/WorktreeCleanup.swift`.
+- Create `Packages/GitDockCore/Sources/GitDockCore/LocalWorkspace/WorktreeCleanupGitHubClient.swift`.
+- Modify `Packages/GitDockCore/Sources/GitDockCore/LocalWorkspace/AgentSessionManager.swift`.
+- Create `Packages/GitDockCore/Tests/GitDockCoreTests/WorktreeCleanupTests.swift`.
+- Extend `Packages/GitDockCore/Tests/GitDockCoreTests/AgentSessionSafetyTests.swift`.
 
 **Interfaces:**
 - `WorktreeCleanupCandidate`: Identifiable, Equatable, Sendable preview containing
@@ -89,11 +89,11 @@ resolution, workspace persistence, and agent lifecycle code.
 ## Task 3: Confirmation, selection, and validation build
 
 **Files:**
-- Create `GitHubBar/Workspace/WorktreeCleanupModel.swift` and `WorktreeCleanupView.swift`.
-- Modify `GitHubBar/Workspace/WorkspaceBoardView.swift`, `WorkspaceModel.swift`,
-  and `GitHubBar/App/AppDelegate.swift` for wiring and board reload after removal.
-- Create `GitHubBarTests/WorktreeCleanupModelTests.swift` and rendering tests.
-- Update `docs/agent-workspace.md` and regenerate `GitHubBar.xcodeproj` with XcodeGen.
+- Create `GitDock/Workspace/WorktreeCleanupModel.swift` and `WorktreeCleanupView.swift`.
+- Modify `GitDock/Workspace/WorkspaceBoardView.swift`, `WorkspaceModel.swift`,
+  and `GitDock/App/AppDelegate.swift` for wiring and board reload after removal.
+- Create `GitDockTests/WorktreeCleanupModelTests.swift` and rendering tests.
+- Update `docs/agent-workspace.md` and regenerate `GitDock.xcodeproj` with XcodeGen.
 
 **Interfaces:** Main-actor observable model owns scan/preview/selection/execution
 state and delegates to the coordinator. No Git commands or safety policy in views.

@@ -47,7 +47,7 @@ and commits verified on a remote branch. Retain its local branch. Recheck all ev
 against the selected preview before removal. Unverifiable work stays flagged.
 
 Explicit manual approval can stop verified app-owned tmux sessions. Remove their
-GitHubBar links after successful worktree removal. Leave terminal windows/tabs alone.
+GitDock links after successful worktree removal. Leave terminal windows/tabs alone.
 If another local process prevents removal, show that reason; preserve unrelated work.
 
 ## Old drafts on GitHub
